@@ -60,13 +60,13 @@
   .refresh-indicator.active { background: var(--green); animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
   
-  /* ─── 优化核心：统一所有显示框高度 ─── */
+  /* ─── 统一所有显示框高度 ─── */
   .card {
     background: var(--card); border: 1px solid var(--border);
     border-radius: 10px; padding: 10px; margin-bottom: 6px;
     transition: opacity .3s;
-    min-height: 132px; height: 132px; /* 固定整体高度 */
-    display: flex; flex-direction: column; justify-content: space-between; /* 纵向两端对齐 */
+    min-height: 132px; height: 132px; /* 锁死标准高度 */
+    display: flex; flex-direction: column; justify-content: space-between; /* 纵向弹性对齐 */
   }
   .card-header {
     display: flex; align-items: center; justify-content: space-between; height: 38px;
@@ -114,15 +114,28 @@
     height: 32px;
   }
 
-  .signal-tag.operation { font-size: 11px; padding: 3px 8px; font-weight: 600; flex: 2; text-align: center; justify-content: center; border-radius: 5px; height: 24px; }
+  .signal-tag.operation { font-size: 11px; padding: 3px 8px; font-weight: 600; flex: 2; text-align: center; justify-content: center; border-radius: 5px; height: 24px; line-height: 1; }
   .signal-tag.buy { border-color: var(--red); color: var(--red); background: rgba(248,81,73,.15); }
   .signal-tag.sell { border-color: var(--green); color: var(--green); background: rgba(63,185,80,.15); }
   .signal-tag.hold { border-color: #ffffff; color: #ffffff; background: rgba(255,255,255,.1); }
-  .signal-tag.watch { border-color: var(--yellow); color: var(--yellow); background: rgba(210,153,34,.15); flex: 1; }
+  .signal-tag.watch { border-color: var(--yellow); color: var(--yellow); background: rgba(210,153,34,.15); }
+  
+  /* ─── 修正：规范并死守动态关注标签的高宽对齐 ─── */
+  .signal-operation .signal-tag.watch-signal {
+    flex: 1;
+    height: 24px;
+    padding: 0 4px;
+    font-size: 11px;
+    font-weight: 600;
+    justify-content: center;
+    align-items: center;
+    line-height: 1;
+    display: none; /* 默认隐藏占位，激活时由JS唤醒 */
+  }
   
   .signal-operation .btn-danger { height: 24px; padding: 0 8px; display: inline-flex; align-items: center; }
 
-  /* 状态容器限定，防止撑开卡片 */
+  /* 降级状态容器，保证异常和加载文本居中且不破坏卡片整体高 */
   .card-body-fallback {
     flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 50px;
   }
@@ -513,12 +526,11 @@ function saveList(list) { localStorage.setItem(LS_KEY, JSON.stringify(list)); }
 let cachedResults = {};
 let isRefreshing = false;
 
-/* ─── 优化核心：DOM渲染重构，保持高度一模一样 ─── */
 function renderCardDOM(item, info) {
   const cardId = `card-${item.sym}`;
   let cardEl = document.getElementById(cardId);
 
-  // 1. 正在读取状态 (高度保持 132px 弹性分布)
+  // 1. 正在读取状态
   if (!info) {
     const loadingHtml = `
       <div class="card-header"><div class="card-code">${item.code}</div></div>
@@ -534,7 +546,7 @@ function renderCardDOM(item, info) {
     cardEl.innerHTML = loadingHtml; return;
   }
 
-  // 2. 接口报错状态 (高度保持 132px 弹性分布)
+  // 2. 接口报错状态
   if (info.error) {
     const errorHtml = `
       <div class="card-header"><div class="card-code">${item.code}</div></div>
@@ -550,7 +562,7 @@ function renderCardDOM(item, info) {
     cardEl.innerHTML = errorHtml; return;
   }
 
-  // 3. 正常读取状态
+  // 3. 正常读取状态 (预置内置隐藏的 watch-signal 标签，结构保持永恒不变)
   const up = info.change_pct >= 0;
   if (!cardEl || cardEl.querySelector('.card-body-fallback')) {
     if (!cardEl) {
@@ -573,6 +585,7 @@ function renderCardDOM(item, info) {
       </div>
       <div class="signal-operation">
         <span class="signal-tag operation hold">⏳ 空仓</span>
+        <span class="signal-tag watch-signal watch">🟡 关注</span>
         <button class="btn btn-sm btn-danger" onclick="removeStock('${item.sym}')">✕ 删除</button>
       </div>`;
   }
@@ -624,16 +637,10 @@ function renderCardDOM(item, info) {
       opSpan.textContent = info.operation.label;
     }
 
-    let watchEl = opRow.querySelector('.signal-tag.watch-signal');
-    if (info.watch) {
-      if (!watchEl) {
-        watchEl = document.createElement('span');
-        watchEl.className = 'signal-tag watch-signal watch';
-        opRow.insertBefore(watchEl, opRow.querySelector('.btn-danger'));
-      }
-      watchEl.textContent = '🟡 关注';
-    } else if (watchEl) {
-      watchEl.remove();
+    // 通过显隐改变行为，绝不破坏框体高度
+    const watchEl = opRow.querySelector('.signal-tag.watch-signal');
+    if (watchEl) {
+      watchEl.style.display = info.watch ? 'inline-flex' : 'none';
     }
   }
 }
