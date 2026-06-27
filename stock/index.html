@@ -468,21 +468,23 @@ async function getStrategy(sym, forceRefresh = false) {
   const _m60Rising = isTrendRising(m60Lines.map(r => r.close));
   const _m60Yellow = computeYellowKline(m60Lines);
   
-  let _opType = 'hold', _opLabel = '⏳ 空仓';
+  let _opType = 'hold', _opLabel = '⏳ 一律空仓 (0)';
+  let _watch = false;
   
-  /* 🎯 依照您的最新绝对控制规则修改拦截结构 */
+  /* 🎯 买卖规则: 条件 → 仓位 */
+  /* 日线红+60分红 → 全仓买入 (1.0) */
+  /* 日线红+60分绿+黄K → 卖一半(0.5) + 🟡关注 */
+  /* 日线红+60分绿+非黄K → 卖一半 (0.5) */
+  /* 日线绿 → 一律空仓 (0) */
   if (_dailyRising) {
-    // 1. 当日线级别为主趋势线为红色（多头）时，执行 60 分钟标准波段滚动
     if (_m60Rising) {
-      if (_m60Yellow) { _opType = 'buy'; _opLabel = '🔴 买入'; }
-      else { _opType = 'sell'; _opLabel = '🟢 卖出'; }
+      _opType = 'buy'; _opLabel = '🔴 全仓买入 (1.0)';
     } else {
-      if (_m60Yellow) { _opType = 'watch'; _opLabel = '🟡 关注'; }
-      else { _opType = 'hold'; _opLabel = '⏳ 空仓'; }
+      _opType = 'sell'; _opLabel = '🟢 卖一半 (0.5)';
+      if (_m60Yellow) _watch = true;
     }
   } else {
-    // 2. 当日线级别为主趋势线为绿色（空头）时，一律严格执行空仓拦截
-    _opType = 'hold'; _opLabel = '⏳ 空仓';
+    _opType = 'hold'; _opLabel = '⏳ 一律空仓 (0)';
   }
 
   return {
@@ -494,7 +496,8 @@ async function getStrategy(sym, forceRefresh = false) {
     m60: dirDesc(m602, m601),
     m30: dirDesc(m302, m301),
     m5: dirDesc(m52, m51),
-    operation: { type: _opType, label: _opLabel, transition: _opType !== 'hold' }
+    operation: { type: _opType, label: _opLabel, transition: _opType !== 'hold' },
+    watch: _watch
   };
 }
 
@@ -596,6 +599,19 @@ function renderCardDOM(item, info) {
       }
       opSpan.className = baseClass + (info.operation.transition ? ' transition' : '');
       opSpan.textContent = info.operation.label;
+    }
+    
+    // 🟡 关注信号（与卖一半同时出现）
+    let watchEl = opRow.querySelector('.signal-tag.watch-signal');
+    if (info.watch) {
+      if (!watchEl) {
+        watchEl = document.createElement('span');
+        watchEl.className = 'signal-tag watch-signal watch';
+        opRow.insertBefore(watchEl, opRow.querySelector('.btn-danger'));
+      }
+      watchEl.textContent = '🟡 关注';
+    } else if (watchEl) {
+      watchEl.remove();
     }
   }
 }
