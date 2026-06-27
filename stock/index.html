@@ -59,30 +59,35 @@
   }
   .refresh-indicator.active { background: var(--green); animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  
+  /* ─── 优化核心：统一所有显示框高度 ─── */
   .card {
     background: var(--card); border: 1px solid var(--border);
     border-radius: 10px; padding: 10px; margin-bottom: 6px;
     transition: opacity .3s;
+    min-height: 132px; height: 132px; /* 固定整体高度 */
+    display: flex; flex-direction: column; justify-content: space-between; /* 纵向两端对齐 */
   }
   .card-header {
-    display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;
+    display: flex; align-items: center; justify-content: space-between; height: 38px;
   }
   .card-code { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 5px; }
-  .card-code .exch { font-size: 11px; color: var(--text2); font-weight: 400; }
+  .card-code .exch { font-size: 11px; color: var(--text2); font-weight: 400; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card-price { text-align: right; }
-  .card-price .price { font-size: 18px; font-weight: 700; }
-  .card-price .change { font-size: 13px; font-weight: 600; }
+  .card-price .price { font-size: 16px; font-weight: 700; line-height: 1.2; }
+  .card-price .change { font-size: 12px; font-weight: 600; }
 
   .change-up { color: var(--red); }
   .change-down { color: var(--green); }
 
   .signal-row {
-    display: flex; gap: 4px; margin-bottom: 4px; flex-wrap: wrap; align-items: center;
+    display: flex; gap: 4px; margin-bottom: 2px; flex-wrap: nowrap; align-items: center; height: 22px;
   }
   .signal-tag {
     display: inline-flex; align-items: center; gap: 2px;
-    padding: 2px 6px; border-radius: 5px; font-size: 11px;
+    padding: 2px 5px; border-radius: 5px; font-size: 11px;
     background: var(--card2); border: 1px solid var(--border);
+    white-space: nowrap; flex: 1; justify-content: center;
   }
   .signal-tag.bullish { border-color: var(--red); color: var(--red); }
   .signal-tag.bearish { border-color: var(--green); color: var(--green); }
@@ -98,21 +103,32 @@
   .signal-tag.bearish.transition { color: var(--green) !important; }
   .signal-tag.buy.transition { color: var(--red) !important; }
   .signal-tag.sell.transition { color: var(--green) !important; }
+  .signal-tag.watch.transition { color: var(--yellow) !important; }
   .signal-tag.hold.transition { color: #ffffff !important; }
 
   @keyframes flash { 0%,100%{opacity:1} 50%{opacity:.35} }
 
   .signal-operation {
-    display: flex; gap: 4px; margin-top: 6px; padding-top: 6px;
+    display: flex; gap: 6px; margin-top: 4px; padding-top: 6px;
     border-top: 1px solid var(--border); align-items: center; justify-content: space-between;
+    height: 32px;
   }
 
-  .signal-tag.operation { font-size: 11px; padding: 3px 10px; font-weight: 600; flex: 1; text-align: center; justify-content: center; border-radius: 5px; height: 23px; }
+  .signal-tag.operation { font-size: 11px; padding: 3px 8px; font-weight: 600; flex: 2; text-align: center; justify-content: center; border-radius: 5px; height: 24px; }
   .signal-tag.buy { border-color: var(--red); color: var(--red); background: rgba(248,81,73,.15); }
   .signal-tag.sell { border-color: var(--green); color: var(--green); background: rgba(63,185,80,.15); }
   .signal-tag.hold { border-color: #ffffff; color: #ffffff; background: rgba(255,255,255,.1); }
+  .signal-tag.watch { border-color: var(--yellow); color: var(--yellow); background: rgba(210,153,34,.15); flex: 1; }
+  
+  .signal-operation .btn-danger { height: 24px; padding: 0 8px; display: inline-flex; align-items: center; }
 
-  .error-text { font-size: 12px; color: var(--red); padding: 4px 0; }
+  /* 状态容器限定，防止撑开卡片 */
+  .card-body-fallback {
+    flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 50px;
+  }
+  .error-text { font-size: 11px; color: var(--red); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
+  .loading-text { font-size: 12px; color: var(--text2); text-align: center; }
+
   .add-section {
     position: fixed; bottom: 0; left: 0; right: 0;
     background: var(--card); border-top: 1px solid var(--border);
@@ -148,10 +164,6 @@
   .toast.show { opacity: 1; }
   .toast.info { background: var(--blue); }
   .toast.warn { background: var(--orange); }
-  .count-badge {
-    font-size: 11px; color: var(--text2); background: var(--card2);
-    padding: 2px 8px; border-radius: 10px;
-  }
 </style>
 </head>
 <body>
@@ -232,6 +244,25 @@ function computeMainTrendLine(closes) {
 function isTrendRising(closes) {
   const trend = computeMainTrendLine(closes);
   return trend.length >= 2 && trend[trend.length - 1] > trend[trend.length - 2];
+}
+
+function computeYellowKline(bars) {
+  if (!bars || bars.length < 9) return false;
+  const hg20 = [], hg21 = [];
+  for (let i = 0; i < bars.length; i++) {
+    const start = Math.max(0, i - 8);
+    const win = bars.slice(start, i + 1);
+    const hhv = Math.max(...win.map(b => b.high));
+    const llv = Math.min(...win.map(b => b.low));
+    const hg19 = hhv === llv ? 50 : (bars[i].close - llv) / (hhv - llv) * 100;
+    if (i === 0) { hg20.push(hg19); hg21.push(hg19); }
+    else {
+      const s20 = (hg19 * 1 + hg20[i-1] * 2) / 3; hg20.push(s20);
+      const s21 = (s20 * 1 + hg21[i-1] * 2) / 3; hg21.push(s21);
+    }
+  }
+  if (hg20.length < 2) return false;
+  return (3 * hg20[hg20.length-1] - 2 * hg21[hg21.length-1]) > hg21[hg21.length-1];
 }
 
 function fp(v) { return Math.abs(v) >= 100 ? v.toFixed(2) : v.toFixed(3); }
@@ -445,15 +476,17 @@ async function getStrategy(sym, forceRefresh = false) {
 
   const _dailyRising = isTrendRising(drLines.map(r => r.close));
   const _m60Rising = isTrendRising(m60Lines.map(r => r.close));
+  const _m60Yellow = computeYellowKline(m60Lines);
 
   let _opType = 'hold', _opLabel = '⏳ 一律空仓 (0)';
+  let _watch = false;
 
-  /* 🎯 买卖规则: 条件 → 仓位 */
   if (_dailyRising) {
     if (_m60Rising) {
       _opType = 'buy'; _opLabel = '🔴 全仓买入 (1.0)';
     } else {
       _opType = 'sell'; _opLabel = '🟢 卖一半 (0.5)';
+      if (_m60Yellow) _watch = true;
     }
   } else {
     _opType = 'hold'; _opLabel = '⏳ 一律空仓 (0)';
@@ -468,7 +501,8 @@ async function getStrategy(sym, forceRefresh = false) {
     m60: dirDesc(m602, m601),
     m30: dirDesc(m302, m301),
     m5: dirDesc(m52, m51),
-    operation: { type: _opType, label: _opLabel, transition: _opType !== 'hold' }
+    operation: { type: _opType, label: _opLabel, transition: _opType !== 'hold' },
+    watch: _watch
   };
 }
 
@@ -479,13 +513,20 @@ function saveList(list) { localStorage.setItem(LS_KEY, JSON.stringify(list)); }
 let cachedResults = {};
 let isRefreshing = false;
 
+/* ─── 优化核心：DOM渲染重构，保持高度一模一样 ─── */
 function renderCardDOM(item, info) {
   const cardId = `card-${item.sym}`;
   let cardEl = document.getElementById(cardId);
-  const up = info ? info.change_pct >= 0 : true;
 
+  // 1. 正在读取状态 (高度保持 132px 弹性分布)
   if (!info) {
-    const loadingHtml = `<div class="card-header"><div class="card-code">${item.code}</div></div><div class="error-text">⏳ 正在读取多级行情...</div>`;
+    const loadingHtml = `
+      <div class="card-header"><div class="card-code">${item.code}</div></div>
+      <div class="card-body-fallback"><div class="loading-text">⏳ 正在读取多级行情...</div></div>
+      <div class="signal-operation">
+        <span class="signal-tag operation hold">等待中</span>
+        <button class="btn btn-sm btn-danger" onclick="removeStock('${item.sym}')">✕ 删除</button>
+      </div>`;
     if (!cardEl) {
       cardEl = document.createElement('div'); cardEl.className = 'card'; cardEl.id = cardId;
       document.getElementById('content').appendChild(cardEl);
@@ -493,8 +534,15 @@ function renderCardDOM(item, info) {
     cardEl.innerHTML = loadingHtml; return;
   }
 
+  // 2. 接口报错状态 (高度保持 132px 弹性分布)
   if (info.error) {
-    const errorHtml = `<div class="card-header"><div class="card-code">${item.code}</div></div><div class="error-text">⚠️ ${info.error}</div><div class="signal-operation" style="border-top:none; margin-top:0; padding-top:0;"><button class="btn btn-sm btn-danger" style="margin-left:auto;" onclick="removeStock('${item.sym}')">✕ 删除</button></div>`;
+    const errorHtml = `
+      <div class="card-header"><div class="card-code">${item.code}</div></div>
+      <div class="card-body-fallback"><div class="error-text">⚠️ ${info.error}</div></div>
+      <div class="signal-operation">
+        <span class="signal-tag operation hold" style="border-color:var(--red); color:var(--red);">异常</span>
+        <button class="btn btn-sm btn-danger" onclick="removeStock('${item.sym}')">✕ 删除</button>
+      </div>`;
     if (!cardEl) {
       cardEl = document.createElement('div'); cardEl.className = 'card'; cardEl.id = cardId;
       document.getElementById('content').appendChild(cardEl);
@@ -502,8 +550,13 @@ function renderCardDOM(item, info) {
     cardEl.innerHTML = errorHtml; return;
   }
 
-  if (!cardEl) {
-    cardEl = document.createElement('div'); cardEl.className = 'card'; cardEl.id = cardId;
+  // 3. 正常读取状态
+  const up = info.change_pct >= 0;
+  if (!cardEl || cardEl.querySelector('.card-body-fallback')) {
+    if (!cardEl) {
+      cardEl = document.createElement('div'); cardEl.className = 'card'; cardEl.id = cardId;
+      document.getElementById('content').appendChild(cardEl);
+    }
     cardEl.innerHTML = `
       <div class="card-header">
         <div class="card-code">${item.code} <span class="exch">${info.name || ''}</span></div>
@@ -522,7 +575,6 @@ function renderCardDOM(item, info) {
         <span class="signal-tag operation hold">⏳ 空仓</span>
         <button class="btn btn-sm btn-danger" onclick="removeStock('${item.sym}')">✕ 删除</button>
       </div>`;
-    document.getElementById('content').appendChild(cardEl);
   }
 
   const priceEl = cardEl.querySelector('.price');
@@ -570,6 +622,18 @@ function renderCardDOM(item, info) {
       }
       opSpan.className = baseClass + (info.operation.transition ? ' transition' : '');
       opSpan.textContent = info.operation.label;
+    }
+
+    let watchEl = opRow.querySelector('.signal-tag.watch-signal');
+    if (info.watch) {
+      if (!watchEl) {
+        watchEl = document.createElement('span');
+        watchEl.className = 'signal-tag watch-signal watch';
+        opRow.insertBefore(watchEl, opRow.querySelector('.btn-danger'));
+      }
+      watchEl.textContent = '🟡 关注';
+    } else if (watchEl) {
+      watchEl.remove();
     }
   }
 }
