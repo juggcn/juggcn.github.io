@@ -38,10 +38,10 @@
   .btn:active { transform: scale(0.95); }
   .btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
   .btn-primary:disabled { opacity: .5; }
-  
+
   .btn-sm { padding: 3px 8px; font-size: 11px; border-radius: 5px; }
   .btn-danger { background: rgba(248,81,73,.15); color: var(--red); border-color: rgba(248,81,73,.3); }
-  
+
   .refresh-bar {
     display: flex; align-items: center; gap: 8px; padding: 8px 12px;
     background: var(--card); border-radius: 10px; margin-bottom: 8px;
@@ -59,34 +59,38 @@
   }
   .refresh-indicator.active { background: var(--green); animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  
   .card {
     background: var(--card); border: 1px solid var(--border);
     border-radius: 10px; padding: 10px; margin-bottom: 6px;
     transition: opacity .3s;
+    min-height: 132px; height: 132px;
+    display: flex; flex-direction: column; justify-content: space-between;
   }
   .card-header {
-    display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;
+    display: flex; align-items: center; justify-content: space-between; height: 38px;
   }
   .card-code { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 5px; }
-  .card-code .exch { font-size: 11px; color: var(--text2); font-weight: 400; }
+  .card-code .exch { font-size: 11px; color: var(--text2); font-weight: 400; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card-price { text-align: right; }
-  .card-price .price { font-size: 18px; font-weight: 700; }
-  .card-price .change { font-size: 13px; font-weight: 600; }
-  
+  .card-price .price { font-size: 16px; font-weight: 700; line-height: 1.2; }
+  .card-price .change { font-size: 12px; font-weight: 600; }
+
   .change-up { color: var(--red); }
   .change-down { color: var(--green); }
-  
+
   .signal-row {
-    display: flex; gap: 4px; margin-bottom: 4px; flex-wrap: wrap; align-items: center;
+    display: flex; gap: 4px; margin-bottom: 2px; flex-wrap: nowrap; align-items: center; height: 22px;
   }
   .signal-tag {
     display: inline-flex; align-items: center; gap: 2px;
-    padding: 2px 6px; border-radius: 5px; font-size: 11px;
+    padding: 2px 5px; border-radius: 5px; font-size: 11px;
     background: var(--card2); border: 1px solid var(--border);
+    white-space: nowrap; flex: 1; justify-content: center;
   }
   .signal-tag.bullish { border-color: var(--red); color: var(--red); }
   .signal-tag.bearish { border-color: var(--green); color: var(--green); }
-  
+
   .signal-tag.transition { 
     border-color: #ffffff !important; 
     background: rgba(255,255,255,.1) !important;
@@ -102,19 +106,39 @@
   .signal-tag.hold.transition { color: #ffffff !important; }
 
   @keyframes flash { 0%,100%{opacity:1} 50%{opacity:.35} }
-  
+
   .signal-operation {
-    display: flex; gap: 4px; margin-top: 6px; padding-top: 6px;
+    display: flex; gap: 6px; margin-top: 4px; padding-top: 6px;
     border-top: 1px solid var(--border); align-items: center; justify-content: space-between;
+    height: 32px;
   }
-  
-  .signal-tag.operation { font-size: 11px; padding: 3px 10px; font-weight: 600; flex: 1; text-align: center; justify-content: center; border-radius: 5px; height: 23px; }
+
+  .signal-tag.operation { font-size: 11px; padding: 3px 8px; font-weight: 600; flex: 2; text-align: center; justify-content: center; border-radius: 5px; height: 24px; line-height: 1; }
   .signal-tag.buy { border-color: var(--red); color: var(--red); background: rgba(248,81,73,.15); }
   .signal-tag.sell { border-color: var(--green); color: var(--green); background: rgba(63,185,80,.15); }
   .signal-tag.hold { border-color: #ffffff; color: #ffffff; background: rgba(255,255,255,.1); }
   .signal-tag.watch { border-color: var(--yellow); color: var(--yellow); background: rgba(210,153,34,.15); }
   
-  .error-text { font-size: 12px; color: var(--red); padding: 4px 0; }
+  .signal-operation .signal-tag.watch-signal {
+    flex: 1;
+    height: 24px;
+    padding: 0 4px;
+    font-size: 11px;
+    font-weight: 600;
+    justify-content: center;
+    align-items: center;
+    line-height: 1;
+    display: none;
+  }
+  
+  .signal-operation .btn-danger { height: 24px; padding: 0 8px; display: inline-flex; align-items: center; }
+
+  .card-body-fallback {
+    flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 50px;
+  }
+  .error-text { font-size: 11px; color: var(--red); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
+  .loading-text { font-size: 12px; color: var(--text2); text-align: center; }
+
   .add-section {
     position: fixed; bottom: 0; left: 0; right: 0;
     background: var(--card); border-top: 1px solid var(--border);
@@ -150,10 +174,6 @@
   .toast.show { opacity: 1; }
   .toast.info { background: var(--blue); }
   .toast.warn { background: var(--orange); }
-  .count-badge {
-    font-size: 11px; color: var(--text2); background: var(--card2);
-    padding: 2px 8px; border-radius: 10px;
-  }
 </style>
 </head>
 <body>
@@ -231,28 +251,46 @@ function computeMainTrendLine(closes) {
   return ema(ema(closes, 10), 10);
 }
 
-function isTrendRising(closes) {
-  const trend = computeMainTrendLine(closes);
-  return trend.length >= 2 && trend[trend.length - 1] > trend[trend.length - 2];
+// 辅助函数：计算通达信标准的 SMA(X, N, M) -> Y = (M*X + (N-M)*Y') / N
+function td_sma(vals, n, m) {
+  if (!vals || vals.length === 0) return [];
+  const r = [];
+  let prev = vals[0];
+  for (let i = 0; i < vals.length; i++) {
+    const cur = (m * vals[i] + (n - m) * prev) / n;
+    r.push(cur);
+    prev = cur;
+  }
+  return r;
 }
 
-function computeYellowKline(bars) {
+// 辅助函数：精准还原通达信公式判断黄K逻辑 (HG22 > HG21)
+function isYellowKline(bars) {
   if (!bars || bars.length < 9) return false;
-  const hg20 = [], hg21 = [];
+  
+  // 1. 计算 RSV (HG19)
+  const rsv = [];
   for (let i = 0; i < bars.length; i++) {
-    const start = Math.max(0, i - 8);
+    const start = Math.max(0, i - 8); // 9 周期
     const win = bars.slice(start, i + 1);
     const hhv = Math.max(...win.map(b => b.high));
     const llv = Math.min(...win.map(b => b.low));
-    const hg19 = hhv === llv ? 50 : (bars[i].close - llv) / (hhv - llv) * 100;
-    if (i === 0) { hg20.push(hg19); hg21.push(hg19); }
-    else {
-      const s20 = (hg19 * 1 + hg20[i-1] * 2) / 3; hg20.push(s20);
-      const s21 = (s20 * 1 + hg21[i-1] * 2) / 3; hg21.push(s21);
-    }
+    const val = (hhv === llv) ? 50 : ((bars[i].close - llv) / (hhv - llv)) * 100;
+    rsv.push(val);
   }
-  if (hg20.length < 2) return false;
-  return (3 * hg20[hg20.length-1] - 2 * hg21[hg21.length-1]) > hg21[hg21.length-1];
+  
+  // 2. 计算 HG20 = SMA(HG19, 3, 1)
+  const hg20 = td_sma(rsv, 3, 1);
+  // 3. 计算 HG21 = SMA(HG20, 3, 1)
+  const hg21 = td_sma(hg20, 3, 1);
+  
+  if (hg20.length === 0) return false;
+  
+  const last_hg20 = hg20[hg20.length - 1];
+  const last_hg21 = hg21[hg21.length - 1];
+  const last_hg22 = 3 * last_hg20 - 2 * last_hg21;
+  
+  return last_hg22 > last_hg21;
 }
 
 function fp(v) { return Math.abs(v) >= 100 ? v.toFixed(2) : v.toFixed(3); }
@@ -442,10 +480,8 @@ async function getStrategy(sym, forceRefresh = false) {
 
   if (drLines && drLines.length > 0) {
     const basePrice = drLines[drLines.length - 1].close; 
-    
     while (p > basePrice * 5) { p /= 10; }
     while (p < basePrice / 5 && p > 0) { p *= 10; }
-
     while (yc > basePrice * 5) { yc /= 10; }
     while (yc < basePrice / 5 && yc > 0) { yc *= 10; }
   }
@@ -456,33 +492,67 @@ async function getStrategy(sym, forceRefresh = false) {
   const m60m = mt(m60Lines.map(r => r.close));
   const m30m = mt(m30Lines.map(r => r.close));
   const m5m = mt(m5Lines.map(r => r.close));
-  
+
   const dd = dm.dir, md60 = m60m.dir, md30 = m30m.dir, md5 = m5m.dir;
-  
+
   const d2 = dd[dd.length-2]||dd[dd.length-1], d1 = dd[dd.length-1];
   const m602 = md60[md60.length-2]||md60[md60.length-1], m601 = md60[md60.length-1];
   const m302 = md30[md30.length-2]||md30[md30.length-1], m301 = md30[md30.length-1];
   const m52 = md5[md5.length-2]||md5[md5.length-1], m51 = md5[md5.length-1];
 
-  const _dailyRising = isTrendRising(drLines.map(r => r.close));
-  const _m60Rising = isTrendRising(m60Lines.map(r => r.close));
-  const _m60Yellow = computeYellowKline(m60Lines);
-  
-  let _opType = 'hold', _opLabel = '⏳ 空仓';
-  
-  /* 🎯 依照您的最新绝对控制规则修改拦截结构 */
-  if (_dailyRising) {
-    // 1. 当日线级别为主趋势线为红色（多头）时，执行 60 分钟标准波段滚动
-    if (_m60Rising) {
-      if (_m60Yellow) { _opType = 'buy'; _opLabel = '🔴 买入'; }
-      else { _opType = 'sell'; _opLabel = '🟢 卖出'; }
-    } else {
-      if (_m60Yellow) { _opType = 'watch'; _opLabel = '🟡 关注'; }
-      else { _opType = 'hold'; _opLabel = '⏳ 空仓'; }
+  // ==================== 多空判定指标抓取 ====================
+  // 1. 日线主趋势线 (EMA(EMA(C,10),10)) 方向变动情况
+  const drTrend = computeMainTrendLine(drLines.map(r => r.close));
+  const _dailyRising = drTrend.length >= 2 && drTrend[drTrend.length - 1] > drTrend[drTrend.length - 2];
+
+  // 2. 日线是否触发通达信公式的黄K (HG22 > HG21)
+  const _dailyYellow = isYellowKline(drLines);
+
+  // 3. 60分钟主趋势线提取，判断当前实时价格是否站上
+  const m60Trend = computeMainTrendLine(m60Lines.map(r => r.close));
+  const m60TrendLatest = m60Trend.length > 0 ? m60Trend[m60Trend.length - 1] : 0;
+  const _m60StandOn = p >= m60TrendLatest; 
+
+  // 4. 60分钟是否属于黄K周期 (用于触发规则6关注逻辑)
+  const _m60Yellow = isYellowKline(m60Lines);
+
+  // ==================== 严格匹配用户 6 条量化规则逻辑 ====================
+  let _opType = 'hold'; 
+  let _opLabel = '⏳ 空仓 (0)';
+  let _watch = false;
+
+  if (_dailyRising) { // 日主红
+    if (_dailyYellow) { // 黄k
+      if (_m60StandOn) {
+        // 规则 1：日主红，黄k，60分钟k站在趋势线之上 -> 满仓
+        _opType = 'buy'; 
+        _opLabel = '🔴 满仓 (1.0)';
+      } else {
+        // 规则 2：日主红，黄k，60分钟k在趋势线下 -> 半仓
+        _opType = 'sell'; 
+        _opLabel = '🟢 半仓 (0.5)';
+      }
+    } else { // 不是黄k
+      if (_m60StandOn) {
+        // 规则 3：日主红，不是黄k，60分钟k站在趋势线上 -> 半仓
+        _opType = 'sell'; 
+        _opLabel = '🟢 半仓 (0.5)';
+      } else {
+        // 规则 4：日主红，不是黄k，60分钟k站在趋势线下 -> 空仓
+        _opType = 'hold'; 
+        _opLabel = '⏳ 空仓 (0)';
+      }
     }
-  } else {
-    // 2. 当日线级别为主趋势线为绿色（空头）时，一律严格执行空仓拦截
-    _opType = 'hold'; _opLabel = '⏳ 空仓';
+
+    // 规则 6：日主红，60分钟k在主趋势线下，60分钟黄k -> 额外触发关注
+    if (!_m60StandOn && _m60Yellow) {
+      _watch = true;
+    }
+
+  } else { 
+    // 规则 5：日主绿 -> 强制空仓
+    _opType = 'hold'; 
+    _opLabel = '⏳ 空仓 (0)';
   }
 
   return {
@@ -494,7 +564,8 @@ async function getStrategy(sym, forceRefresh = false) {
     m60: dirDesc(m602, m601),
     m30: dirDesc(m302, m301),
     m5: dirDesc(m52, m51),
-    operation: { type: _opType, label: _opLabel, transition: _opType !== 'hold' }
+    operation: { type: _opType, label: _opLabel, transition: _opType !== 'hold' },
+    watch: _watch
   };
 }
 
@@ -508,10 +579,15 @@ let isRefreshing = false;
 function renderCardDOM(item, info) {
   const cardId = `card-${item.sym}`;
   let cardEl = document.getElementById(cardId);
-  const up = info ? info.change_pct >= 0 : true;
 
   if (!info) {
-    const loadingHtml = `<div class="card-header"><div class="card-code">${item.code}</div></div><div class="error-text">⏳ 正在读取多级行情...</div>`;
+    const loadingHtml = `
+      <div class="card-header"><div class="card-code">${item.code}</div></div>
+      <div class="card-body-fallback"><div class="loading-text">⏳ 正在读取多级行情...</div></div>
+      <div class="signal-operation">
+        <span class="signal-tag operation hold">等待中</span>
+        <button class="btn btn-sm btn-danger" onclick="removeStock('${item.sym}')">✕ 删除</button>
+      </div>`;
     if (!cardEl) {
       cardEl = document.createElement('div'); cardEl.className = 'card'; cardEl.id = cardId;
       document.getElementById('content').appendChild(cardEl);
@@ -520,7 +596,13 @@ function renderCardDOM(item, info) {
   }
 
   if (info.error) {
-    const errorHtml = `<div class="card-header"><div class="card-code">${item.code}</div></div><div class="error-text">⚠️ ${info.error}</div><div class="signal-operation" style="border-top:none; margin-top:0; padding-top:0;"><button class="btn btn-sm btn-danger" style="margin-left:auto;" onclick="removeStock('${item.sym}')">✕ 删除</button></div>`;
+    const errorHtml = `
+      <div class="card-header"><div class="card-code">${item.code}</div></div>
+      <div class="card-body-fallback"><div class="error-text">⚠️ ${info.error}</div></div>
+      <div class="signal-operation">
+        <span class="signal-tag operation hold" style="border-color:var(--red); color:var(--red);">异常</span>
+        <button class="btn btn-sm btn-danger" onclick="removeStock('${item.sym}')">✕ 删除</button>
+      </div>`;
     if (!cardEl) {
       cardEl = document.createElement('div'); cardEl.className = 'card'; cardEl.id = cardId;
       document.getElementById('content').appendChild(cardEl);
@@ -528,8 +610,12 @@ function renderCardDOM(item, info) {
     cardEl.innerHTML = errorHtml; return;
   }
 
-  if (!cardEl) {
-    cardEl = document.createElement('div'); cardEl.className = 'card'; cardEl.id = cardId;
+  const up = info.change_pct >= 0;
+  if (!cardEl || cardEl.querySelector('.card-body-fallback')) {
+    if (!cardEl) {
+      cardEl = document.createElement('div'); cardEl.className = 'card'; cardEl.id = cardId;
+      document.getElementById('content').appendChild(cardEl);
+    }
     cardEl.innerHTML = `
       <div class="card-header">
         <div class="card-code">${item.code} <span class="exch">${info.name || ''}</span></div>
@@ -546,15 +632,15 @@ function renderCardDOM(item, info) {
       </div>
       <div class="signal-operation">
         <span class="signal-tag operation hold">⏳ 空仓</span>
+        <span class="signal-tag watch-signal watch">🟡 关注</span>
         <button class="btn btn-sm btn-danger" onclick="removeStock('${item.sym}')">✕ 删除</button>
       </div>`;
-    document.getElementById('content').appendChild(cardEl);
   }
 
   const priceEl = cardEl.querySelector('.price');
   const changeEl = cardEl.querySelector('.change');
   const exchEl = cardEl.querySelector('.exch');
-  
+
   if (priceEl && priceEl.textContent !== info.price_str) priceEl.textContent = info.price_str;
   if (exchEl && exchEl.textContent !== info.name) exchEl.textContent = info.name;
   if (changeEl && changeEl.textContent !== `${info.change_icon} ${info.change_str}`) {
@@ -567,10 +653,10 @@ function renderCardDOM(item, info) {
     if (!row) return;
     const span = row.children[index];
     if (!span) return;
-    
+
     const targetText = `${label} ${periodData.txt}`;
     if (span.textContent !== targetText) span.textContent = targetText;
-    
+
     let baseClass = `signal-tag ${periodData.cls}`;
     if (periodData.transition) {
       baseClass += ' transition';
@@ -596,6 +682,11 @@ function renderCardDOM(item, info) {
       }
       opSpan.className = baseClass + (info.operation.transition ? ' transition' : '');
       opSpan.textContent = info.operation.label;
+    }
+
+    const watchEl = opRow.querySelector('.signal-tag.watch-signal');
+    if (watchEl) {
+      watchEl.style.display = info.watch ? 'inline-flex' : 'none';
     }
   }
 }
@@ -639,7 +730,7 @@ async function refreshAll(forceRefresh = false) {
   for (const arr of [REALTIME_SERVERS, KLINE_SERVERS, KLINE_DAILY_SERVERS]) {
     for (const srv of arr) delete srv._dead;
   }
-  
+
   const batchSize = 2; 
   for (let i = 0; i < list.length; i += batchSize) {
     const batch = list.slice(i, i + batchSize);
