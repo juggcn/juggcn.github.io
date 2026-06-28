@@ -268,15 +268,22 @@ function td_sma(vals, n, m) {
 function isYellowKline(bars) {
   if (!bars || bars.length < 9) return false;
   
-  // 1. 计算 RSV (HG19)
-  const rsv = [];
-  for (let i = 0; i < bars.length; i++) {
+  const len = bars.length;
+  // 优化：使用 Float64Array 预分配内存，避免高频触发垃圾回收 (GC)
+  const rsv = new Float64Array(len);
+  
+  for (let i = 0; i < len; i++) {
     const start = Math.max(0, i - 8); // 9 周期
-    const win = bars.slice(start, i + 1);
-    const hhv = Math.max(...win.map(b => b.high));
-    const llv = Math.min(...win.map(b => b.low));
-    const val = (hhv === llv) ? 50 : ((bars[i].close - llv) / (hhv - llv)) * 100;
-    rsv.push(val);
+    let hhv = -Infinity;
+    let llv = Infinity;
+    
+    // 优化：降维打击，直接在原数组上遍历找最值，彻底砍掉 slice 和 map 产生的临时数组
+    for (let j = start; j <= i; j++) {
+      if (bars[j].high > hhv) hhv = bars[j].high;
+      if (bars[j].low < llv) llv = bars[j].low;
+    }
+    
+    rsv[i] = (hhv === llv) ? 50 : ((bars[i].close - llv) / (hhv - llv)) * 100;
   }
   
   // 2. 计算 HG20 = SMA(HG19, 3, 1)
