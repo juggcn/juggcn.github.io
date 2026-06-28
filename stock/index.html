@@ -60,13 +60,12 @@
   .refresh-indicator.active { background: var(--green); animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
   
-  /* ─── 统一所有显示框高度 ─── */
   .card {
     background: var(--card); border: 1px solid var(--border);
     border-radius: 10px; padding: 10px; margin-bottom: 6px;
     transition: opacity .3s;
-    min-height: 132px; height: 132px; /* 锁死标准高度 */
-    display: flex; flex-direction: column; justify-content: space-between; /* 纵向弹性对齐 */
+    min-height: 132px; height: 132px;
+    display: flex; flex-direction: column; justify-content: space-between;
   }
   .card-header {
     display: flex; align-items: center; justify-content: space-between; height: 38px;
@@ -120,7 +119,6 @@
   .signal-tag.hold { border-color: #ffffff; color: #ffffff; background: rgba(255,255,255,.1); }
   .signal-tag.watch { border-color: var(--yellow); color: var(--yellow); background: rgba(210,153,34,.15); }
   
-  /* ─── 修正：规范并死守动态关注标签的高宽对齐 ─── */
   .signal-operation .signal-tag.watch-signal {
     flex: 1;
     height: 24px;
@@ -130,12 +128,11 @@
     justify-content: center;
     align-items: center;
     line-height: 1;
-    display: none; /* 默认隐藏占位，激活时由JS唤醒 */
+    display: none;
   }
   
   .signal-operation .btn-danger { height: 24px; padding: 0 8px; display: inline-flex; align-items: center; }
 
-  /* 降级状态容器，保证异常和加载文本居中且不破坏卡片整体高 */
   .card-body-fallback {
     flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 50px;
   }
@@ -488,21 +485,26 @@ async function getStrategy(sym, forceRefresh = false) {
   const m52 = md5[md5.length-2]||md5[md5.length-1], m51 = md5[md5.length-1];
 
   const _dailyRising = isTrendRising(drLines.map(r => r.close));
-  const _m60Rising = isTrendRising(m60Lines.map(r => r.close));
+  
+  const m60Trend = computeMainTrendLine(m60Lines.map(r => r.close));
+  const m60TrendLatest = m60Trend.length > 0 ? m60Trend[m60Trend.length - 1] : 0;
+  const _m60StandOn = p >= m60TrendLatest; 
+
   const _m60Yellow = computeYellowKline(m60Lines);
 
-  let _opType = 'hold', _opLabel = '⏳ 一律空仓 (0)';
+  let _opType = 'hold', _opLabel = '⏳ 空仓 (0)';
   let _watch = false;
 
+  /* 🎯 已修改显示文案的决策逻辑 */
   if (_dailyRising) {
-    if (_m60Rising) {
-      _opType = 'buy'; _opLabel = '🔴 全仓买入 (1.0)';
+    if (_m60StandOn) {
+      _opType = 'buy'; _opLabel = '🔴 全仓 (1.0)';
     } else {
-      _opType = 'sell'; _opLabel = '🟢 卖一半 (0.5)';
+      _opType = 'sell'; _opLabel = '🟢 半仓 (0.5)';
       if (_m60Yellow) _watch = true;
     }
   } else {
-    _opType = 'hold'; _opLabel = '⏳ 一律空仓 (0)';
+    _opType = 'hold'; _opLabel = '⏳ 空仓 (0)';
   }
 
   return {
@@ -530,7 +532,6 @@ function renderCardDOM(item, info) {
   const cardId = `card-${item.sym}`;
   let cardEl = document.getElementById(cardId);
 
-  // 1. 正在读取状态
   if (!info) {
     const loadingHtml = `
       <div class="card-header"><div class="card-code">${item.code}</div></div>
@@ -546,7 +547,6 @@ function renderCardDOM(item, info) {
     cardEl.innerHTML = loadingHtml; return;
   }
 
-  // 2. 接口报错状态
   if (info.error) {
     const errorHtml = `
       <div class="card-header"><div class="card-code">${item.code}</div></div>
@@ -562,7 +562,6 @@ function renderCardDOM(item, info) {
     cardEl.innerHTML = errorHtml; return;
   }
 
-  // 3. 正常读取状态 (预置内置隐藏的 watch-signal 标签，结构保持永恒不变)
   const up = info.change_pct >= 0;
   if (!cardEl || cardEl.querySelector('.card-body-fallback')) {
     if (!cardEl) {
@@ -637,7 +636,6 @@ function renderCardDOM(item, info) {
       opSpan.textContent = info.operation.label;
     }
 
-    // 通过显隐改变行为，绝不破坏框体高度
     const watchEl = opRow.querySelector('.signal-tag.watch-signal');
     if (watchEl) {
       watchEl.style.display = info.watch ? 'inline-flex' : 'none';
