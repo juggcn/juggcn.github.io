@@ -530,11 +530,16 @@ async function getStrategy(sym, forceRefresh = false) {
 
   let _opType = 'hold', _opLabel = '⏳ 空仓 (0)', _watch = false;
   if (_dailyRising) {
-    if (_dailyYellowVal) {
-      if (_m60StandOn) { _opType = 'buy'; _opLabel = '🔴 满仓 (1.0)'; } else { _opType = 'sell'; _opLabel = '🟢 半仓 (0.5)'; }
-    } else {
-      if (_m60StandOn) { _opType = 'sell'; _opLabel = '🟢 半仓 (0.5)'; } else { _opType = 'hold'; _opLabel = '⏳ 空仓 (0)'; }
+    // 只要日线主红，底线就是半仓。只有同时满足日线黄K且60分钟站上趋势线，才满仓。
+    if (_dailyYellowVal && _m60StandOn) { 
+      _opType = 'buy'; 
+      _opLabel = '🔴 满仓 (1.0)'; 
+    } else { 
+      // 包含：黄K且破60分、非黄K且站上60分、非黄K且破60分，全部保持半仓
+      _opType = 'sell'; 
+      _opLabel = '🟢 半仓 (0.5)'; 
     }
+
     if (!_m60StandOn && _m60YellowVal) _watch = true;
   } else { _opType = 'hold'; _opLabel = '⏳ 空仓 (0)'; }
 
