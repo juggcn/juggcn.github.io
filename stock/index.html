@@ -59,7 +59,7 @@
   }
   .refresh-indicator.active { background: var(--green); animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
+  
   .card {
     background: var(--card); border: 1px solid var(--border);
     border-radius: 10px; padding: 10px; margin-bottom: 6px;
@@ -118,7 +118,7 @@
   .signal-tag.sell { border-color: var(--green); color: var(--green); background: rgba(63,185,80,.15); }
   .signal-tag.hold { border-color: #ffffff; color: #ffffff; background: rgba(255,255,255,.1); }
   .signal-tag.watch { border-color: var(--yellow); color: var(--yellow); background: rgba(210,153,34,.15); }
-
+  
   .signal-operation .signal-tag.watch-signal {
     flex: 1;
     height: 24px;
@@ -130,7 +130,7 @@
     line-height: 1;
     display: none;
   }
-
+  
   .signal-operation .btn-danger { height: 24px; padding: 0 8px; display: inline-flex; align-items: center; }
 
   .card-body-fallback {
@@ -209,6 +209,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
+// 为了历史回溯，将拉取数据量 lmt 放宽到 250 （约60个交易日）
 const REALTIME_SERVERS = [
   { fmt: 'json',   name: '东方财富', url: sym => `https://push2.eastmoney.com/api/qt/stock/get?secid=${toSecId(sym)}&fields=f43,f44,f45,f46,f60,f58,f57` },
   { fmt: 'gbk',    name: '腾讯',   url: sym => `https://qt.gtimg.cn/q=${sym}` },
@@ -217,14 +218,14 @@ const REALTIME_SERVERS = [
 ];
 
 const KLINE_SERVERS = [
-  { fmt: 'json',  name: '东方财富', url: (s, scale) => `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${toSecId(s)}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=${scale}&fqt=1&end=20500101&lmt=60` },
-  { fmt: 'json',  name: '腾讯',   url: (s, scale) => `https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=${s},m${scale},,60` },
-  { fmt: 'json',  name: '东方财富不复权', url: (s, scale) => `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${toSecId(s)}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=${scale}&fqt=0&end=20500101&lmt=60` }
+  { fmt: 'json',  name: '东方财富', url: (s, scale) => `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${toSecId(s)}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=${scale}&fqt=1&end=20500101&lmt=250` },
+  { fmt: 'json',  name: '腾讯',   url: (s, scale) => `https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=${s},m${scale},,250` },
+  { fmt: 'json',  name: '东方财富不复权', url: (s, scale) => `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${toSecId(s)}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=${scale}&fqt=0&end=20500101&lmt=250` }
 ];
 
 const KLINE_DAILY_SERVERS = [
-  { fmt: 'json', name: '东方财富', url: (s) => `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${toSecId(s)}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=1&end=20500101&lmt=60` },
-  { fmt: 'json', name: '腾讯',   url: (s) => `https://ifzq.gtimg.cn/appstock/app/fqkline/get?param=${s},day,,,60,qfq` },
+  { fmt: 'json', name: '东方财富', url: (s) => `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${toSecId(s)}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=1&end=20500101&lmt=250` },
+  { fmt: 'json', name: '腾讯',   url: (s) => `https://ifzq.gtimg.cn/appstock/app/fqkline/get?param=${s},day,,,250,qfq` },
   { fmt: 'gbk',  name: '网易',   url: (s) => `https://quotes.money.163.com/service/chddata.html?code=${toNetEaseCode(s)}&start=20230101&end=20500101&fields=TCLOSE;HIGH;LOW;TOPEN;VOTURNOVER` }
 ];
 
@@ -251,7 +252,6 @@ function computeMainTrendLine(closes) {
   return ema(ema(closes, 10), 10);
 }
 
-// 辅助函数：计算通达信标准的 SMA(X, N, M) -> Y = (M*X + (N-M)*Y') / N
 function td_sma(vals, n, m) {
   if (!vals || vals.length === 0) return [];
   const r = [];
@@ -264,40 +264,34 @@ function td_sma(vals, n, m) {
   return r;
 }
 
-// 辅助函数：精准还原通达信公式判断黄K逻辑 (HG22 > HG21)
-function isYellowKline(bars) {
-  if (!bars || bars.length < 9) return false;
-
+function getYellowKlineArray(bars) {
   const len = bars.length;
-  // 优化：使用 Float64Array 预分配内存，避免高频触发垃圾回收 (GC)
   const rsv = new Float64Array(len);
-
+  
   for (let i = 0; i < len; i++) {
-    const start = Math.max(0, i - 8); // 9 周期
+    const start = Math.max(0, i - 8);
     let hhv = -Infinity;
     let llv = Infinity;
-
-    // 优化：降维打击，直接在原数组上遍历找最值，彻底砍掉 slice 和 map 产生的临时数组
+    
     for (let j = start; j <= i; j++) {
       if (bars[j].high > hhv) hhv = bars[j].high;
       if (bars[j].low < llv) llv = bars[j].low;
     }
-
+    
     rsv[i] = (hhv === llv) ? 50 : ((bars[i].close - llv) / (hhv - llv)) * 100;
   }
-
-  // 2. 计算 HG20 = SMA(HG19, 3, 1)
+  
   const hg20 = td_sma(rsv, 3, 1);
-  // 3. 计算 HG21 = SMA(HG20, 3, 1)
   const hg21 = td_sma(hg20, 3, 1);
-
-  if (hg20.length === 0) return false;
-
-  const last_hg20 = hg20[hg20.length - 1];
-  const last_hg21 = hg21[hg21.length - 1];
-  const last_hg22 = 3 * last_hg20 - 2 * last_hg21;
-
-  return last_hg22 > last_hg21;
+  
+  const res = new Array(len).fill(false);
+  for (let i = 0; i < len; i++) {
+    const last_hg20 = hg20[i];
+    const last_hg21 = hg21[i];
+    const last_hg22 = 3 * last_hg20 - 2 * last_hg21;
+    res[i] = last_hg22 > last_hg21;
+  }
+  return res;
 }
 
 function fp(v) { return Math.abs(v) >= 100 ? v.toFixed(2) : v.toFixed(3); }
@@ -343,8 +337,6 @@ function fmtSym(code) {
   return guessExch(code) + code;
 }
 
-function getPureCodeNum(sym) { return sym.replace(/[a-zA-Z]/g, ''); }
-
 function toSecId(sym) { return (sym.slice(0,2) === 'sh' ? '1.' : '0.') + sym.slice(2); }
 
 function parseTencentRt(txt) {
@@ -380,8 +372,14 @@ function parseEmKlines(data) {
   if (!data?.data?.klines) throw new Error('K线空');
   return data.data.klines.map(line => {
     const p = line.split(',');
-    return { open: +p[1], close: +p[2], high: +p[3], low: +p[4], volume: parseInt(p[5]) };
+    return { time: p[0], open: +p[1], close: +p[2], high: +p[3], low: +p[4], volume: parseInt(p[5]) };
   });
+}
+
+function formatTencentTime(t) {
+  if (typeof t !== 'string') return t;
+  if (t.length === 12) return `${t.slice(0,4)}-${t.slice(4,6)}-${t.slice(6,8)} ${t.slice(8,10)}:${t.slice(10,12)}`;
+  return t;
 }
 
 function parseTencentKlines(sym, data) {
@@ -393,10 +391,10 @@ function parseTencentKlines(sym, data) {
   return arr.map(item => {
     if (typeof item === 'string') {
       const p = item.split(/[\/,\s]+/);
-      return { open: +p[1], close: +p[2], high: +p[3], low: +p[4], volume: parseInt(p[5]) || 0 };
+      return { time: formatTencentTime(p[0]), open: +p[1], close: +p[2], high: +p[3], low: +p[4], volume: parseInt(p[5]) || 0 };
     }
-    const o = Array.isArray(item) ? { open: item[1], close: item[2], high: item[3], low: item[4], volume: item[5] } : item;
-    return { open: +o.open, close: +o.close, high: +o.high, low: +o.low, volume: parseInt(o.volume) || 0 };
+    const o = Array.isArray(item) ? { time: formatTencentTime(item[0]), open: item[1], close: item[2], high: item[3], low: item[4], volume: item[5] } : item;
+    return { time: formatTencentTime(o.time || o.date), open: +o.open, close: +o.close, high: +o.high, low: +o.low, volume: parseInt(o.volume) || 0 };
   });
 }
 
@@ -411,7 +409,7 @@ function parseNetEaseKlines(csv) {
     if (cols.length < 6) continue;
     const open = +cols[1], high = +cols[2], close = +cols[3], low = +cols[4], vol = parseInt(cols[5]) || 0;
     if (isNaN(open) || isNaN(close)) continue;
-    results.push({ open, high, close, low, volume: vol });
+    results.push({ time: cols[0], open, high, close, low, volume: vol });
   }
   if (results.length < 22) throw new Error(`链条不足`);
   return results.reverse();
@@ -437,10 +435,17 @@ async function fetchRealtime(sym) {
   });
 }
 
+// ================== 优化点1：K线分级缓存 ==================
 async function fetchKline(sym, scale, forceRefresh = false) {
   const cacheKey = `${sym}_${scale}`;
   const now = Date.now();
-  const cacheDuration = scale === 101 ? 3600000 : 8000;
+  
+  // 按照周期长短，设置不同级别的缓存过期时间，极大降低网络请求频率
+  let cacheDuration = 8000; 
+  if (scale === 101) cacheDuration = 3600000;      // 日线缓存 1 小时
+  else if (scale === 60) cacheDuration = 1800000;  // 60分钟线缓存 30 分钟
+  else if (scale === 30) cacheDuration = 900000;   // 30分钟线缓存 15 分钟
+  else if (scale === 5) cacheDuration = 150000;    // 5分钟线缓存 2.5 分钟
 
   if (!forceRefresh && _klineCache[cacheKey] && (now - _klineCache[cacheKey].time < cacheDuration)) {
     return _klineCache[cacheKey].data;
@@ -501,65 +506,92 @@ async function getStrategy(sym, forceRefresh = false) {
   const m5m = mt(m5Lines.map(r => r.close));
 
   const dd = dm.dir, md60 = m60m.dir, md30 = m30m.dir, md5 = m5m.dir;
-
   const d2 = dd[dd.length-2]||dd[dd.length-1], d1 = dd[dd.length-1];
   const m602 = md60[md60.length-2]||md60[md60.length-1], m601 = md60[md60.length-1];
   const m302 = md30[md30.length-2]||md30[md30.length-1], m301 = md30[md30.length-1];
   const m52 = md5[md5.length-2]||md5[md5.length-1], m51 = md5[md5.length-1];
 
-  // ==================== 多空判定指标抓取 ====================
-  // 1. 日线主趋势线 (EMA(EMA(C,10),10)) 方向变动情况
-  const drTrend = computeMainTrendLine(drLines.map(r => r.close));
-  const _dailyRising = drTrend.length >= 2 && drTrend[drTrend.length - 1] > drTrend[drTrend.length - 2];
+  const drCloses = drLines.map(r => r.close);
+  const drTrendArr = computeMainTrendLine(drCloses);
+  const drYellowArr = getYellowKlineArray(drLines);
 
-  // 2. 日线是否触发通达信公式的黄K (HG22 > HG21)
-  const _dailyYellow = isYellowKline(drLines);
+  const m60Closes = m60Lines.map(r => r.close);
+  const m60TrendArr = computeMainTrendLine(m60Closes);
+  const m60YellowArr = getYellowKlineArray(m60Lines);
 
-  // 3. 60分钟主趋势线提取，判断当前实时价格是否站上
-  const m60Trend = computeMainTrendLine(m60Lines.map(r => r.close));
-  const m60TrendLatest = m60Trend.length > 0 ? m60Trend[m60Trend.length - 1] : 0;
+  const drTrendLatest = drTrendArr[drTrendArr.length - 1];
+  const drTrendPrev = drTrendArr[drTrendArr.length - 2] || 0;
+  const _dailyRising = drTrendArr.length >= 2 && (drTrendLatest > drTrendPrev);
+  const _dailyYellowVal = drYellowArr[drYellowArr.length - 1];
+  
+  const m60TrendLatest = m60TrendArr[m60TrendArr.length - 1] || 0;
   const _m60StandOn = p >= m60TrendLatest; 
+  const _m60YellowVal = m60YellowArr[m60YellowArr.length - 1];
 
-  // 4. 60分钟是否属于黄K周期 (用于触发规则6关注逻辑)
-  const _m60Yellow = isYellowKline(m60Lines);
+  let _opType = 'hold', _opLabel = '⏳ 空仓 (0)', _watch = false;
+  if (_dailyRising) {
+    if (_dailyYellowVal) {
+      if (_m60StandOn) { _opType = 'buy'; _opLabel = '🔴 满仓 (1.0)'; } else { _opType = 'sell'; _opLabel = '🟢 半仓 (0.5)'; }
+    } else {
+      if (_m60StandOn) { _opType = 'sell'; _opLabel = '🟢 半仓 (0.5)'; } else { _opType = 'hold'; _opLabel = '⏳ 空仓 (0)'; }
+    }
+    if (!_m60StandOn && _m60YellowVal) _watch = true;
+  } else { _opType = 'hold'; _opLabel = '⏳ 空仓 (0)'; }
 
-  // ==================== 严格匹配用户 6 条量化规则逻辑 ====================
-  let _opType = 'hold'; 
-  let _opLabel = '⏳ 空仓 (0)';
-  let _watch = false;
-
-  if (_dailyRising) { // 日主红
-    if (_dailyYellow) { // 黄k
-      if (_m60StandOn) {
-        // 规则 1：日主红，黄k，60分钟k站在趋势线之上 -> 满仓
-        _opType = 'buy'; 
-        _opLabel = '🔴 满仓 (1.0)';
-      } else {
-        // 规则 2：日主红，黄k，60分钟k在趋势线下 -> 半仓
-        _opType = 'sell'; 
-        _opLabel = '🟢 半仓 (0.5)';
-      }
-    } else { // 不是黄k
-      if (_m60StandOn) {
-        // 规则 3：日主红，不是黄k，60分钟k站在趋势线上 -> 半仓
-        _opType = 'sell'; 
-        _opLabel = '🟢 半仓 (0.5)';
-      } else {
-        // 规则 4：日主红，不是黄k，60分钟k站在趋势线下 -> 空仓
-        _opType = 'hold'; 
-        _opLabel = '⏳ 空仓 (0)';
-      }
+  // ================== 优化点2：双指针历史回溯算法 ==================
+  const historicalStates = [];
+  let dIdx = 0; // 提取日线指针到外层
+  
+  for (let i = 0; i < m60Lines.length; i++) {
+    const m60Bar = m60Lines[i];
+    const dateStr = m60Bar.time.substring(0, 10); 
+    
+    // 双指针推进：只要下一根日线的日期还没超过当前60分钟线的日期，日线指针就往后走
+    while (dIdx < drLines.length - 1 && drLines[dIdx + 1].time.substring(0, 10) <= dateStr) {
+      dIdx++;
     }
 
-    // 规则 6：日主红，60分钟k在主趋势线下，60分钟黄k -> 额外触发关注
-    if (!_m60StandOn && _m60Yellow) {
-      _watch = true;
+    const histDailyRising = dIdx >= 1 && (drTrendArr[dIdx] > drTrendArr[dIdx - 1]);
+    const histDailyYellowVal = drYellowArr[dIdx];
+    const histM60StandOn = m60Bar.close >= m60TrendArr[i];
+    
+    let histOp = 'hold';
+    if (histDailyRising) {
+      if (histDailyYellowVal) {
+        histOp = histM60StandOn ? 'buy' : 'sell';
+      } else {
+        histOp = histM60StandOn ? 'sell' : 'hold';
+      }
+    } else {
+      histOp = 'hold';
     }
+    historicalStates.push({ type: histOp, price: m60Bar.close, time: m60Bar.time });
+  }
 
-  } else { 
-    // 规则 5：日主绿 -> 强制空仓
-    _opType = 'hold'; 
-    _opLabel = '⏳ 空仓 (0)';
+  let triggerPrice = '---';
+  let triggerTime = ''; 
+  let currentState = _opType; 
+  
+  for (let i = historicalStates.length - 1; i >= 0; i--) {
+    if (historicalStates[i].type !== currentState) {
+      if (i === historicalStates.length - 1) {
+        triggerPrice = fp(p);
+        triggerTime = '刚才'; // 盘中实时变动
+      } else {
+        triggerPrice = fp(historicalStates[i+1].price);
+        triggerTime = historicalStates[i+1].time; // 截取下一根（即发生突变的那根K线）的时间
+      }
+      break;
+    }
+  }
+
+  // 格式化时间
+  if (triggerPrice !== '---') {
+    let formattedTime = triggerTime;
+    if (triggerTime && triggerTime.length >= 16) {
+      formattedTime = triggerTime.substring(5, 16); 
+    }
+    _opLabel += ` @ ${triggerPrice} (${formattedTime})`;
   }
 
   return {
@@ -571,12 +603,12 @@ async function getStrategy(sym, forceRefresh = false) {
     m60: dirDesc(m602, m601),
     m30: dirDesc(m302, m301),
     m5: dirDesc(m52, m51),
-    operation: { type: _opType, label: _opLabel, transition: _opType !== 'hold' },
+    operation: { type: _opType, label: _opLabel, transition: _opType !== 'hold' }, 
     watch: _watch
   };
 }
 
-const LS_KEY = 'akshare_watchlist';
+const LS_KEY = 'akshare_watchlist_v2'; 
 function loadList() { try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch { return []; } }
 function saveList(list) { localStorage.setItem(LS_KEY, JSON.stringify(list)); }
 
@@ -590,7 +622,7 @@ function renderCardDOM(item, info) {
   if (!info) {
     const loadingHtml = `
       <div class="card-header"><div class="card-code">${item.code}</div></div>
-      <div class="card-body-fallback"><div class="loading-text">⏳ 正在读取多级行情...</div></div>
+      <div class="card-body-fallback"><div class="loading-text">⏳ 正在推演历史回溯...</div></div>
       <div class="signal-operation">
         <span class="signal-tag operation hold">等待中</span>
         <button class="btn btn-sm btn-danger" onclick="removeStock('${item.sym}')">✕ 删除</button>
@@ -818,7 +850,16 @@ function showToast(msg, isError, type) {
 }
 
 async function init() {
-  const list = loadList();
+  let list = loadList();
+  let oldKey = localStorage.getItem('akshare_watchlist');
+  if (list.length === 0 && oldKey) {
+      try {
+          const oldList = JSON.parse(oldKey);
+          list = oldList.map(it => ({ code: it.code, sym: it.sym }));
+          saveList(list);
+      } catch(e) {}
+  }
+
   if (list.length > 0) {
     await refreshAll(true);
   } else {
