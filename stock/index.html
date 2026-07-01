@@ -59,7 +59,7 @@
   }
   .refresh-indicator.active { background: var(--green); animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-  
+
   .card {
     background: var(--card); border: 1px solid var(--border);
     border-radius: 10px; padding: 10px; margin-bottom: 6px;
@@ -118,7 +118,7 @@
   .signal-tag.sell { border-color: var(--green); color: var(--green); background: rgba(63,185,80,.15); }
   .signal-tag.hold { border-color: #ffffff; color: #ffffff; background: rgba(255,255,255,.1); }
   .signal-tag.watch { border-color: var(--yellow); color: var(--yellow); background: rgba(210,153,34,.15); }
-  
+
   .signal-operation .signal-tag.watch-signal {
     flex: 1;
     height: 24px;
@@ -130,7 +130,7 @@
     line-height: 1;
     display: none;
   }
-  
+
   .signal-operation .btn-danger { height: 24px; padding: 0 8px; display: inline-flex; align-items: center; }
 
   .card-body-fallback {
@@ -174,6 +174,51 @@
   .toast.show { opacity: 1; }
   .toast.info { background: var(--blue); }
   .toast.warn { background: var(--orange); }
+
+  /* PushPlus 推送设置面板 */
+  .push-config {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+    display: none; font-size: 13px;
+  }
+  .push-config.open { display: block; }
+  .push-config .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .push-config .row:last-child { margin-bottom: 0; }
+  .push-config label { color: var(--text2); min-width: 52px; font-size: 12px; }
+  .push-config input[type=text] {
+    flex: 1; min-width: 100px; padding: 5px 8px; border-radius: 5px;
+    border: 1px solid var(--border); background: var(--card2); color: var(--text); font-size: 12px; outline: none;
+  }
+  .push-config input[type=text]:focus { border-color: var(--blue); }
+  .push-config .token-input { font-family: monospace; letter-spacing: 0.5px; }
+  .push-config .status { color: var(--text2); font-size: 11px; }
+  .push-config .status.on { color: var(--green); }
+  .push-config .status.off { color: var(--text2); }
+  .push-config .status.error { color: var(--red); }
+  
+  /* 优化点：缩小 1/4 后的开关样式 */
+  .toggle-switch {
+    position: relative; display: inline-block; 
+    width: 18px; height: 20px; flex-shrink: 0; /* 宽度从 24px 缩减至 18px */
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-switch .slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--card2); border: 1px solid var(--border); border-radius: 20px; transition: .25s;
+  }
+  .toggle-switch .slider::before {
+    content: ''; position: absolute; height: 12px; width: 12px; left: 2px; bottom: 3px;
+    background: var(--text2); border-radius: 50%; transition: left .25s;
+  }
+  .toggle-switch input:checked + .slider { background: var(--blue); border-color: var(--blue); }
+  .toggle-switch input:checked + .slider::before { left: calc(100% - 14px); background: #fff; }
+  
+  .btn-setting {
+    background: none; border: none; color: var(--text2); cursor: pointer;
+    font-size: 16px; padding: 2px 4px; transition: color .15s;
+  }
+  .btn-setting:hover { color: var(--text); }
+  .btn-setting.active { color: var(--blue); }
 </style>
 </head>
 <body>
@@ -181,6 +226,7 @@
 <div class="header">
   <h1>📊 自选股多空看板</h1>
   <div class="header-right">
+    <button class="btn-setting" onclick="togglePushConfig()" id="pushToggleBtn" title="推送设置">🔔</button>
     <button class="btn btn-sm" onclick="refreshAll(true)" id="refreshBtn">🔄</button>
   </div>
 </div>
@@ -198,6 +244,30 @@
   <span class="refresh-indicator" id="refreshIndicator"></span>
 </div>
 
+<div class="push-config" id="pushConfigPanel">
+  <div class="row" style="justify-content: space-between;">
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <label>推送到</label>
+      <span style="color:var(--text);font-size:12px;">微信 ClawBot</span>
+    </div>
+    <label class="toggle-switch" style="margin-right: 2px;">
+      <input type="checkbox" id="pushEnabled" onchange="onPushToggle()">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="row">
+    <label>Token</label>
+    <div style="flex:1;display:flex;gap:4px;min-width:100px;">
+      <input type="password" id="pushToken" class="token-input" style="flex:1;min-width:60px;" placeholder="你的 PushPlus token" onchange="savePushConfig()" oninput="savePushConfig()" autocomplete="off">
+      <button class="btn btn-sm" onclick="toggleTokenVis()" id="tokenVisBtn" title="显示/隐藏 Token" style="flex-shrink:0;font-size:16px;line-height:1;padding:3px 6px;">👁</button>
+    </div>
+    <button class="btn btn-sm" id="testPushBtn" onclick="testPush()">测试</button>
+  </div>
+  <div class="row">
+    <span class="status off" id="pushStatus">🔕 推送未启用</span>
+  </div>
+</div>
+
 <div id="content"><div class="loading"><div class="spinner"></div><div>加载中...</div></div></div>
 
 <div class="add-section">
@@ -209,7 +279,6 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// 为了历史回溯，将拉取数据量 lmt 放宽到 250 （约60个交易日）
 const REALTIME_SERVERS = [
   { fmt: 'json',   name: '东方财富', url: sym => `https://push2.eastmoney.com/api/qt/stock/get?secid=${toSecId(sym)}&fields=f43,f44,f45,f46,f60,f58,f57` },
   { fmt: 'gbk',    name: '腾讯',   url: sym => `https://qt.gtimg.cn/q=${sym}` },
@@ -267,23 +336,23 @@ function td_sma(vals, n, m) {
 function getYellowKlineArray(bars) {
   const len = bars.length;
   const rsv = new Float64Array(len);
-  
+
   for (let i = 0; i < len; i++) {
     const start = Math.max(0, i - 8);
     let hhv = -Infinity;
     let llv = Infinity;
-    
+
     for (let j = start; j <= i; j++) {
       if (bars[j].high > hhv) hhv = bars[j].high;
       if (bars[j].low < llv) llv = bars[j].low;
     }
-    
+
     rsv[i] = (hhv === llv) ? 50 : ((bars[i].close - llv) / (hhv - llv)) * 100;
   }
-  
+
   const hg20 = td_sma(rsv, 3, 1);
   const hg21 = td_sma(hg20, 3, 1);
-  
+
   const res = new Array(len).fill(false);
   for (let i = 0; i < len; i++) {
     const last_hg20 = hg20[i];
@@ -435,17 +504,15 @@ async function fetchRealtime(sym) {
   });
 }
 
-// ================== 优化点1：K线分级缓存 ==================
 async function fetchKline(sym, scale, forceRefresh = false) {
   const cacheKey = `${sym}_${scale}`;
   const now = Date.now();
-  
-  // 按照周期长短，设置不同级别的缓存过期时间，极大降低网络请求频率
+
   let cacheDuration = 8000; 
-  if (scale === 101) cacheDuration = 3600000;      // 日线缓存 1 小时
-  else if (scale === 60) cacheDuration = 1800000;  // 60分钟线缓存 30 分钟
-  else if (scale === 30) cacheDuration = 900000;   // 30分钟线缓存 15 分钟
-  else if (scale === 5) cacheDuration = 150000;    // 5分钟线缓存 2.5 分钟
+  if (scale === 101) cacheDuration = 3600000;      
+  else if (scale === 60) cacheDuration = 1800000;  
+  else if (scale === 30) cacheDuration = 900000;   
+  else if (scale === 5) cacheDuration = 150000;    
 
   if (!forceRefresh && _klineCache[cacheKey] && (now - _klineCache[cacheKey].time < cacheDuration)) {
     return _klineCache[cacheKey].data;
@@ -523,35 +590,30 @@ async function getStrategy(sym, forceRefresh = false) {
   const drTrendPrev = drTrendArr[drTrendArr.length - 2] || 0;
   const _dailyRising = drTrendArr.length >= 2 && (drTrendLatest > drTrendPrev);
   const _dailyYellowVal = drYellowArr[drYellowArr.length - 1];
-  
+
   const m60TrendLatest = m60TrendArr[m60TrendArr.length - 1] || 0;
   const _m60StandOn = p >= m60TrendLatest; 
   const _m60YellowVal = m60YellowArr[m60YellowArr.length - 1];
 
   let _opType = 'hold', _opLabel = '⏳ 空仓 (0)', _watch = false;
   if (_dailyRising) {
-    // 只要日线主红，底线就是半仓。只有同时满足日线黄K且60分钟站上趋势线，才满仓。
     if (_dailyYellowVal && _m60StandOn) { 
       _opType = 'buy'; 
       _opLabel = '🔴 满仓 (1.0)'; 
     } else { 
-      // 包含：黄K且破60分、非黄K且站上60分、非黄K且破60分，全部保持半仓
       _opType = 'sell'; 
       _opLabel = '🟢 半仓 (0.5)'; 
     }
-
     if (!_m60StandOn && _m60YellowVal) _watch = true;
   } else { _opType = 'hold'; _opLabel = '⏳ 空仓 (0)'; }
 
-  // ================== 优化点2：双指针历史回溯算法 ==================
   const historicalStates = [];
-  let dIdx = 0; // 提取日线指针到外层
-  
+  let dIdx = 0; 
+
   for (let i = 0; i < m60Lines.length; i++) {
     const m60Bar = m60Lines[i];
     const dateStr = m60Bar.time.substring(0, 10); 
-    
-    // 双指针推进：只要下一根日线的日期还没超过当前60分钟线的日期，日线指针就往后走
+
     while (dIdx < drLines.length - 1 && drLines[dIdx + 1].time.substring(0, 10) <= dateStr) {
       dIdx++;
     }
@@ -559,7 +621,7 @@ async function getStrategy(sym, forceRefresh = false) {
     const histDailyRising = dIdx >= 1 && (drTrendArr[dIdx] > drTrendArr[dIdx - 1]);
     const histDailyYellowVal = drYellowArr[dIdx];
     const histM60StandOn = m60Bar.close >= m60TrendArr[i];
-    
+
     let histOp = 'hold';
     if (histDailyRising) {
       if (histDailyYellowVal) {
@@ -576,21 +638,20 @@ async function getStrategy(sym, forceRefresh = false) {
   let triggerPrice = '---';
   let triggerTime = ''; 
   let currentState = _opType; 
-  
+
   for (let i = historicalStates.length - 1; i >= 0; i--) {
     if (historicalStates[i].type !== currentState) {
       if (i === historicalStates.length - 1) {
         triggerPrice = fp(p);
-        triggerTime = '刚才'; // 盘中实时变动
+        triggerTime = '刚才'; 
       } else {
         triggerPrice = fp(historicalStates[i+1].price);
-        triggerTime = historicalStates[i+1].time; // 截取下一根（即发生突变的那根K线）的时间
+        triggerTime = historicalStates[i+1].time; 
       }
       break;
     }
   }
 
-  // 格式化时间
   if (triggerPrice !== '---') {
     let formattedTime = triggerTime;
     if (triggerTime && triggerTime.length >= 16) {
@@ -792,6 +853,8 @@ async function refreshAll(forceRefresh = false) {
   cachedResults = results;
   render();
 
+  checkAndPushChanges(results);
+
   btn.disabled = false; btn.textContent = '🔄';
   isRefreshing = false;
 }
@@ -854,6 +917,154 @@ function showToast(msg, isError, type) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
 }
 
+const PUSHPLUS_API = 'https://www.pushplus.plus/send';
+const PUSHPLUS_TOKEN_KEY = 'pushplus_token';
+const PUSHPLUS_ENABLED_KEY = 'pushplus_enabled';
+const PUSH_POS_KEY = 'push_prev_positions';
+
+function loadPushConfig() {
+  return {
+    token: localStorage.getItem(PUSHPLUS_TOKEN_KEY) || '',
+    enabled: localStorage.getItem(PUSHPLUS_ENABLED_KEY) === 'true'
+  };
+}
+
+function savePushConfig() {
+  const token = document.getElementById('pushToken').value.trim();
+  const enabled = document.getElementById('pushEnabled').checked;
+  localStorage.setItem(PUSHPLUS_TOKEN_KEY, token);
+  localStorage.setItem(PUSHPLUS_ENABLED_KEY, enabled ? 'true' : 'false');
+  updatePushStatus();
+}
+
+function updatePushStatus() {
+  const cfg = loadPushConfig();
+  const el = document.getElementById('pushStatus');
+  const btn = document.getElementById('pushToggleBtn');
+  if (!cfg.token) {
+    el.className = 'status off'; el.textContent = '⚠️ 请填写 PushPlus Token';
+    btn.classList.remove('active');
+  } else if (!cfg.enabled) {
+    el.className = 'status off'; el.textContent = '🔕 推送已关闭';
+    btn.classList.remove('active');
+  } else {
+    el.className = 'status on'; el.textContent = '✅ 推送已启用 (ClawBot)';
+    btn.classList.add('active');
+  }
+}
+
+function togglePushConfig() {
+  const panel = document.getElementById('pushConfigPanel');
+  panel.classList.toggle('open');
+}
+
+function onPushToggle() {
+  savePushConfig();
+}
+
+async function testPush() {
+  const cfg = loadPushConfig();
+  if (!cfg.token) { showToast('请先填写 Token', true); return; }
+  const btn = document.getElementById('testPushBtn');
+  btn.disabled = true; btn.textContent = '⏳';
+  try {
+    const ok = await sendPushPlus(cfg.token, '🔔 PushPlus 测试', '✅ 仓位监控推送已配置成功！\n当自选品种仓位变化时会自动推送通知。\n\n—— 自选股多空看板', 'txt');
+    if (ok) {
+      showToast('✅ 测试推送成功！检查微信', false, 'info');
+    } else {
+      showToast('❌ 推送失败，请检查 Token', true);
+    }
+  } catch (e) {
+    showToast('❌ 推送异常: ' + e.message, true);
+  }
+  btn.disabled = false; btn.textContent = '测试';
+}
+
+async function sendPushPlus(token, title, content, template = 'txt') {
+  const r = await fetch(PUSHPLUS_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, title, content, template, channel: 'clawbot' })
+  });
+  const json = await r.json();
+  return json.code === 200;
+}
+
+function toggleTokenVis() {
+  const inp = document.getElementById('pushToken');
+  const btn = document.getElementById('tokenVisBtn');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+function loadPrevPositions() {
+  try { return JSON.parse(localStorage.getItem(PUSH_POS_KEY)) || {}; } catch { return {}; }
+}
+function savePrevPositions(positions) {
+  localStorage.setItem(PUSH_POS_KEY, JSON.stringify(positions));
+}
+
+function getOpLabel(opType) {
+  if (opType === 'buy') return '🔴 满仓 (1.0)';
+  if (opType === 'sell') return '🟢 半仓 (0.5)';
+  return '⏳ 空仓 (0)';
+}
+
+async function checkAndPushChanges(newResults) {
+  const cfg = loadPushConfig();
+  if (!cfg.token || !cfg.enabled) return;
+
+  const prev = loadPrevPositions();
+  const changes = [];
+  const now = new Date();
+
+  for (const [sym, info] of Object.entries(newResults)) {
+    if (info.error) continue;
+    const newOp = info.operation.type; 
+    const prevOp = prev[sym];
+
+    if (prevOp !== undefined && prevOp !== newOp) {
+      const list = loadList();
+      const item = list.find(it => it.sym === sym);
+      const code = item ? item.code : sym;
+      const name = info.name || code;
+      changes.push({
+        sym, code, name,
+        from: prevOp,
+        to: newOp,
+        fromLabel: getOpLabel(prevOp),
+        toLabel: getOpLabel(newOp),
+        price: info.price_str,
+        time: now.toLocaleTimeString('zh-CN', { hour12: false })
+      });
+    }
+    prev[sym] = newOp;
+  }
+
+  savePrevPositions(prev);
+
+  if (changes.length === 0) return;
+
+  let title = `📊 仓位变动 ${changes.length} 个品种`;
+  let content = '';
+  for (const c of changes) {
+    content += `【${c.code} ${c.name}】
+价格: ${c.price}
+${c.fromLabel} → ${c.toLabel}
+${c.time}
+${'-'.repeat(20)}\n`;
+  }
+  content += '—— 自选股多空看板 自动推送';
+
+  await sendPushPlus(cfg.token, title, content, 'txt');
+  showToast(`📤 已推送 ${changes.length} 条仓位变动`, false, 'info');
+}
+
 async function init() {
   let list = loadList();
   let oldKey = localStorage.getItem('akshare_watchlist');
@@ -871,6 +1082,13 @@ async function init() {
     render();
   }
   setAutoRefresh();
+
+  const cfg = loadPushConfig();
+  const tokenInput = document.getElementById('pushToken');
+  const enabledInput = document.getElementById('pushEnabled');
+  if (tokenInput) tokenInput.value = cfg.token;
+  if (enabledInput) enabledInput.checked = cfg.enabled;
+  updatePushStatus();
 }
 
 init();
