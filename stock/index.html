@@ -174,47 +174,6 @@
   .toast.show { opacity: 1; }
   .toast.info { background: var(--blue); }
   .toast.warn { background: var(--orange); }
-
-  /* PushPlus 推送设置面板 */
-  .push-config {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
-    display: none; font-size: 13px;
-  }
-  .push-config.open { display: block; }
-  .push-config .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-  .push-config .row:last-child { margin-bottom: 0; }
-  .push-config label { color: var(--text2); min-width: 52px; font-size: 12px; }
-  .push-config input[type=text] {
-    flex: 1; min-width: 100px; padding: 5px 8px; border-radius: 5px;
-    border: 1px solid var(--border); background: var(--card2); color: var(--text); font-size: 12px; outline: none;
-  }
-  .push-config input[type=text]:focus { border-color: var(--blue); }
-  .push-config .token-input { font-family: monospace; letter-spacing: 0.5px; }
-  .push-config .status { color: var(--text2); font-size: 11px; }
-  .push-config .status.on { color: var(--green); }
-  .push-config .status.off { color: var(--text2); }
-  .push-config .status.error { color: var(--red); }
-  .toggle-switch {
-    position: relative; display: inline-block; 
-    width: 18px; height: 20px; flex-shrink: 0;
-  }
-  .toggle-switch input { opacity: 0; width: 0; height: 0; }
-  .toggle-switch .slider {
-    position: absolute; cursor: pointer; inset: 0;
-    background: var(--card2); border: 1px solid var(--border); border-radius: 20px; transition: .25s;
-  }
-  .toggle-switch .slider::before {
-    content: ''; position: absolute; height: 12px; width: 12px; left: 2px; bottom: 2px;
-    background: var(--text2); border-radius: 50%; transition: left .25s;
-  }
-  .toggle-switch input:checked + .slider { background: var(--blue); border-color: var(--blue); }
-  .toggle-switch input:checked + .slider::before { left: calc(100% - 14px); background: #fff; }
-    background: none; border: none; color: var(--text2); cursor: pointer;
-    font-size: 16px; padding: 2px 4px; transition: color .15s;
-  }
-  .btn-setting:hover { color: var(--text); }
-  .btn-setting.active { color: var(--blue); }
 </style>
 </head>
 <body>
@@ -222,7 +181,6 @@
 <div class="header">
   <h1>📊 自选股多空看板</h1>
   <div class="header-right">
-    <button class="btn-setting" onclick="togglePushConfig()" id="pushToggleBtn" title="推送设置">🔔</button>
     <button class="btn btn-sm" onclick="refreshAll(true)" id="refreshBtn">🔄</button>
   </div>
 </div>
@@ -238,32 +196,6 @@
     <option value="60">1分</option>
   </select>
   <span class="refresh-indicator" id="refreshIndicator"></span>
-</div>
-
-<div class="push-config" id="pushConfigPanel">
-  <div class="row">
-    <div style="display: flex; gap: 8px; align-items: center;">
-      <label>推送到</label>
-      <span style="color:var(--text);font-size:12px;">微信 ClawBot</span>
-    </div>
-  </div>
-  <div class="row">
-    <label>Token</label>
-    <div style="flex:1;display:flex;gap:6px;min-width:80px;">
-      <input type="password" id="pushToken" class="token-input" style="flex:1;min-width:50px;" placeholder="你的 PushPlus token" onchange="savePushConfig()" oninput="savePushConfig()" autocomplete="off">
-      <button class="btn btn-sm" onclick="toggleTokenVis()" id="tokenVisBtn" title="显示/隐藏 Token" style="flex-shrink:0;font-size:12px;line-height:1;padding:4px 8px;">👁 显示</button>
-    </div>
-  </div>
-  <div class="row" style="gap:8px;align-items:center;">
-    <div style="flex:1;display:flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--card2);">
-      <span class="status off" id="pushStatus" style="flex:1;padding:0;border:none;background:transparent;">🔕 推送未启用</span>
-      <label class="toggle-switch" style="flex-shrink:0;">
-        <input type="checkbox" id="pushEnabled" onchange="onPushToggle()">
-        <span class="slider"></span>
-      </label>
-    </div>
-    <button class="btn btn-sm" onclick="testPush()" id="testPushBtn" style="flex:1;justify-content:center;">📤 测试</button>
-  </div>
 </div>
 
 <div id="content"><div class="loading"><div class="spinner"></div><div>加载中...</div></div></div>
@@ -860,9 +792,6 @@ async function refreshAll(forceRefresh = false) {
   cachedResults = results;
   render();
 
-  // 刷新完成后检测仓位变化并推送
-  checkAndPushChanges(results);
-
   btn.disabled = false; btn.textContent = '🔄';
   isRefreshing = false;
 }
@@ -925,160 +854,6 @@ function showToast(msg, isError, type) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
 }
 
-// ================== PushPlus 推送通知 ==================
-const PUSHPLUS_API = 'https://www.pushplus.plus/send';
-const PUSHPLUS_TOKEN_KEY = 'pushplus_token';
-const PUSHPLUS_ENABLED_KEY = 'pushplus_enabled';
-const PUSH_POS_KEY = 'push_prev_positions';
-
-function loadPushConfig() {
-  return {
-    token: localStorage.getItem(PUSHPLUS_TOKEN_KEY) || '',
-    enabled: localStorage.getItem(PUSHPLUS_ENABLED_KEY) === 'true'
-  };
-}
-
-function savePushConfig() {
-  const token = document.getElementById('pushToken').value.trim();
-  const enabled = document.getElementById('pushEnabled').checked;
-  localStorage.setItem(PUSHPLUS_TOKEN_KEY, token);
-  localStorage.setItem(PUSHPLUS_ENABLED_KEY, enabled ? 'true' : 'false');
-  updatePushStatus();
-}
-
-function updatePushStatus() {
-  const cfg = loadPushConfig();
-  const el = document.getElementById('pushStatus');
-  const btn = document.getElementById('pushToggleBtn');
-  if (!cfg.token) {
-    el.className = 'status off'; el.textContent = '⚠️ 请填写 PushPlus Token';
-    btn.classList.remove('active');
-  } else if (!cfg.enabled) {
-    el.className = 'status off'; el.textContent = '🔕 推送已关闭';
-    btn.classList.remove('active');
-  } else {
-    el.className = 'status on'; el.textContent = '✅ 推送已启用 (ClawBot)';
-    btn.classList.add('active');
-  }
-}
-
-function togglePushConfig() {
-  const panel = document.getElementById('pushConfigPanel');
-  panel.classList.toggle('open');
-}
-
-function onPushToggle() {
-  savePushConfig();
-}
-
-async function testPush() {
-  const cfg = loadPushConfig();
-  if (!cfg.token) { showToast('请先填写 Token', true); return; }
-  const btn = document.getElementById('testPushBtn');
-  btn.disabled = true; btn.textContent = '⏳ 测试';
-  try {
-    const ok = await sendPushPlus(cfg.token, '🔔 PushPlus 测试', '✅ 仓位监控推送已配置成功！\n当自选品种仓位变化时会自动推送通知。\n\n—— 自选股多空看板', 'txt');
-    if (ok) {
-      showToast('✅ 测试推送成功！检查微信', false, 'info');
-    } else {
-      showToast('❌ 推送失败，请检查 Token', true);
-    }
-  } catch (e) {
-    showToast('❌ 推送异常: ' + e.message, true);
-  }
-  btn.disabled = false; btn.textContent = '📤 测试';
-}
-
-async function sendPushPlus(token, title, content, template = 'txt') {
-  const r = await fetch(PUSHPLUS_API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, title, content, template, channel: 'clawbot' })
-  });
-  const json = await r.json();
-  return json.code === 200;
-}
-
-function toggleTokenVis() {
-  const inp = document.getElementById('pushToken');
-  const btn = document.getElementById('tokenVisBtn');
-  if (inp.type === 'password') {
-    inp.type = 'text';
-    btn.textContent = '🙈 隐藏';
-  } else {
-    inp.type = 'password';
-    btn.textContent = '👁 显示';
-  }
-}
-
-// 仓位变化检测
-function loadPrevPositions() {
-  try { return JSON.parse(localStorage.getItem(PUSH_POS_KEY)) || {}; } catch { return {}; }
-}
-function savePrevPositions(positions) {
-  localStorage.setItem(PUSH_POS_KEY, JSON.stringify(positions));
-}
-
-function getOpLabel(opType) {
-  if (opType === 'buy') return '🔴 满仓 (1.0)';
-  if (opType === 'sell') return '🟢 半仓 (0.5)';
-  return '⏳ 空仓 (0)';
-}
-
-async function checkAndPushChanges(newResults) {
-  const cfg = loadPushConfig();
-  if (!cfg.token || !cfg.enabled) return;
-
-  const prev = loadPrevPositions();
-  const changes = [];
-  const now = new Date();
-
-  for (const [sym, info] of Object.entries(newResults)) {
-    if (info.error) continue;
-    const newOp = info.operation.type; // 'buy' | 'sell' | 'hold'
-    const prevOp = prev[sym];
-
-    // 检测变化：之前有记录且仓位不同
-    if (prevOp !== undefined && prevOp !== newOp) {
-      const list = loadList();
-      const item = list.find(it => it.sym === sym);
-      const code = item ? item.code : sym;
-      const name = info.name || code;
-      changes.push({
-        sym, code, name,
-        from: prevOp,
-        to: newOp,
-        fromLabel: getOpLabel(prevOp),
-        toLabel: getOpLabel(newOp),
-        price: info.price_str,
-        time: now.toLocaleTimeString('zh-CN', { hour12: false })
-      });
-    }
-    // 更新/记录当前仓位
-    prev[sym] = newOp;
-  }
-
-  savePrevPositions(prev);
-
-  if (changes.length === 0) return;
-
-  // 构建推送内容（txt 纯文本格式）
-  let title = `📊 仓位变动 ${changes.length} 个品种`;
-  let content = '';
-  for (const c of changes) {
-    content += `【${c.code} ${c.name}】
-价格: ${c.price}
-${c.fromLabel} → ${c.toLabel}
-${c.time}
-${'-'.repeat(20)}\n`;
-  }
-  content += '—— 自选股多空看板 自动推送';
-
-  // 发送推送（单个品种变化也推送，多条合并推送）
-  await sendPushPlus(cfg.token, title, content, 'txt');
-  showToast(`📤 已推送 ${changes.length} 条仓位变动`, false, 'info');
-}
-
 async function init() {
   let list = loadList();
   let oldKey = localStorage.getItem('akshare_watchlist');
@@ -1096,14 +871,6 @@ async function init() {
     render();
   }
   setAutoRefresh();
-
-  // 加载推送配置
-  const cfg = loadPushConfig();
-  const tokenInput = document.getElementById('pushToken');
-  const enabledInput = document.getElementById('pushEnabled');
-  if (tokenInput) tokenInput.value = cfg.token;
-  if (enabledInput) enabledInput.checked = cfg.enabled;
-  updatePushStatus();
 }
 
 init();
