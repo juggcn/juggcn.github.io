@@ -18,7 +18,7 @@
 :root{
   --bg:#0F1113; --card:#15181B; --card2:#1B1F23; --line:#23272B;
   --txt:#E9ECEF; --txt2:#B9BFC4; --dim:#8B9196;
-  --up:#E24B4A; --down:#1FA97A; --warn:#EF9F27; --down2:#1FA97A;
+  --up:#E24B4A; --down:#1FA97A; --flat:#9AA0A6; --warn:#EF9F27; --down2:#1FA97A;
   --radius:12px;
 }
 html,body{margin:0;padding:0;height:100%}
@@ -134,7 +134,7 @@ input{font-family:inherit}
 .card .r4{display:flex;gap:0;margin-top:4px;font-size:10px;color:var(--dim)}
 .card .r4 .dotsep{margin:0 6px;color:#4A5056}
 .card .r4 .b{color:var(--dim)}
-.up{color:var(--up)}.dn{color:var(--down)}.flat{color:var(--dim)}
+.up{color:var(--up)}.dn{color:var(--down)}.flat{color:var(--flat)}
 .empty{
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   padding:60px 40px;color:var(--dim);font-size:12px;text-align:center;line-height:1.7;
@@ -193,7 +193,12 @@ input{font-family:inherit}
 .panel{margin-top:10px;padding:10px 12px;background:var(--card);border-radius:var(--radius)}
 .prow{display:flex;align-items:center;padding:4px 0;font-size:12px}
 .prow .k{color:var(--dim)}
-.prow .v{margin-left:auto;font-size:13px;color:var(--txt)}
+.prow .v{margin-left:auto;font-size:13px;color:#fff}
+/* 下面几条必须带上 .prow .v 前缀：单类 .up/.dn 特异性低，会被上面的 .prow .v 吃掉颜色 */
+.prow .v.up{color:var(--up)}
+.prow .v.dn{color:var(--down)}
+.prow .v.flat{color:var(--flat)}
+.prow .v.t2{color:var(--txt2)}
 .pdiv{height:1px;background:var(--line);margin:4px 0}
 .note{font-size:11px;color:var(--dim);line-height:1.65;margin:12px 2px 0}
 
@@ -227,7 +232,6 @@ input{font-family:inherit}
 .sitem:active{background:#1F2327}
 .btn{height:36px;border-radius:9px;padding:0 14px;font-size:13px;background:var(--card2);border:1px solid var(--line);color:var(--txt2)}
 .btn.pri{background:var(--up);border-color:var(--up);color:#fff}
-.btn.danger{color:var(--up);border-color:rgba(226,75,74,.4)}
 .toast{
   position:absolute;left:50%;bottom:86px;transform:translateX(-50%);
   background:#2E3439;color:#F2F4F5;font-size:12.5px;padding:8px 14px;border-radius:8px;
@@ -363,7 +367,6 @@ var WR = (function () {
   }
   function wd(d) { return (d.getDay() + 6) % 7 + 1; }           // 周一=1 … 周日=7
   function addDays(d, n) { var x = new Date(d.getTime()); x.setDate(x.getDate() + n); return x; }
-  function monday(d) { return new Date(monday0(d).getTime()); }
   function monday0(d) {
     var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     x.setDate(x.getDate() - (wd(x) - 1)); return x;
@@ -554,9 +557,7 @@ var WR = (function () {
   function excludedName(name, kind) {
     return isBond(name) || isMoney(name) || (kind === '股票' && riskName(name));
   }
-  function isExcluded(f) {
-    return isBond(f.name) || isMoney(f.name) || (f.kind === '股票' && riskName(f.name));
-  }
+  function isExcluded(f) { return excludedName(f.name, f.kind); }
   function txSymbol(f) {
     if (f.market === 1) return 'sh' + f.code;
     if (/^(4|8|92)/.test(f.code)) return 'bj' + f.code;
@@ -575,7 +576,6 @@ var WR = (function () {
   var manual = null;
   var prefer = null;   // 本轮探测出来的首选源（腾讯可用时优先前复权）
   var lastUsed = '';
-  var switches = 0;
 
   function srcOk(k, ms) {
     var h = SRC[k]; h.ok++; h.consec = 0; h.cool = 0; h.totalMs += ms;
@@ -643,11 +643,10 @@ var WR = (function () {
       };
     });
   }
-  function setManual(k) { manual = k; switches = 0; }
+  function setManual(k) { manual = k; }
 
   function resetSources() {
     Object.keys(SRC).forEach(function (k) { var h = SRC[k]; h.ok = h.fail = h.consec = h.totalMs = h.cool = 0; h.lastErr = ''; });
-    switches = 0;
   }
 
   function gap(msg) { var e = new Error(msg); e.gap = true; return e; }
@@ -669,7 +668,6 @@ var WR = (function () {
         if (e && e.gap) throw e;
         srcFail(k, e);
         lastErr = e;
-        switches++;
       }
     }
     throw new Error('数据源全部失败：' + (lastErr && lastErr.message || lastErr));
@@ -1371,7 +1369,6 @@ var WR = (function () {
   var state = {
     hits: [],
     universe: [],
-    universeAt: null,
     updatedAt: null,
     universeSize: 0,
 
@@ -1398,8 +1395,7 @@ var WR = (function () {
     hist: null,
     watch: [],
 
-    detail: null,
-    scanningUniverse: false
+    detail: null
   };
 
   /* ------------------------------ 基础 ------------------------------ */
@@ -1417,11 +1413,10 @@ var WR = (function () {
     return s;
   }
 
-  function liveQuote(code) {
+  function liveQuote(code, now) {
     var q = state.live[code];
     if (!q) return null;
-    var now = new Date();
-    if (q.time && !W.sameDay(q.time, now)) return null; // 隔日的不算实时
+    if (q.time && !W.sameDay(q.time, now || new Date())) return null; // 隔日的不算实时
     return q;
   }
 
@@ -1492,15 +1487,15 @@ var WR = (function () {
     return '<span class="pill ' + (red ? 'up' : 'dn') + '">' + (red ? label + weeks : label) + '</span>';
   }
 
-  function cardHTML(r, stars) {
+  function cardHTML(r, stars, stale) {
     var f = r.fund;
-    var q = liveQuote(f.code);
+    var q = liveQuote(f.code, stale.now);
     var price = q ? q.price : f.price;
     var pct = q ? q.pct : f.pct;
     var tr = r.weekly, td = r.daily;
     var starred = stars.has(f.code);
-    var staleWeek = weekStale();
-    var staleDay = daysOld() > 0;
+    var staleWeek = stale.week;
+    var staleDay = stale.day;
     var scanned = !!(td || tr);
 
     var h = '<div class="card" data-code="' + W.esc(f.code) + '">';
@@ -1556,8 +1551,10 @@ var WR = (function () {
       box.innerHTML = emptyHTML();
       return;
     }
+    // 整页只算一次：weekStale() 内部要走两遍 anchorFriday + fmt，按卡算就是上千次日期运算
+    var stale = { week: weekStale(), day: daysOld() > 0, now: new Date() };
     var buf = [];
-    for (var i = 0; i < rows.length; i++) buf.push(cardHTML(rows[i], stars));
+    for (var i = 0; i < rows.length; i++) buf.push(cardHTML(rows[i], stars, stale));
     box.innerHTML = buf.join('');
   }
 
@@ -1586,17 +1583,18 @@ var WR = (function () {
   }
 
   /* ------------------------------ 状态卡 ------------------------------ */
+  function p2(n) { return String(n).padStart(2, '0'); }
   function hms(d) {
-    var p = function (n) { return String(n).padStart(2, '0'); };
-    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+    return p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
   }
   function mmdd(d) {
-    var p = function (n) { return String(n).padStart(2, '0'); };
-    return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    return p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
   }
 
   function renderStatus() {
     var p = state.prog;
+    var now = new Date();
+    var days = daysOld();
     var title, right = '', sub = '', warn = '';
 
     if (state.running) {
@@ -1614,9 +1612,9 @@ var WR = (function () {
 
     if (!state.running) {
       if (state.liveAt) {
-        var trading = W.isTrading(new Date());
+        var trading = W.isTrading(now);
         right = '<span class="dot ' + (trading ? 'live' : '') + '"></span><span>' +
-          (trading ? '实时 ' : W.session(new Date()) + ' ') + hms(state.liveAt) + '</span>';
+          (trading ? '实时 ' : W.session(now) + ' ') + hms(state.liveAt) + '</span>';
       } else if (state.updatedAt) {
         right = '<span>' + mmdd(state.updatedAt) + '</span>';
       }
@@ -1624,7 +1622,7 @@ var WR = (function () {
     $('stTitle').textContent = title;
     $('stRight').innerHTML = right;
 
-    sub = p.stage || (W.isTrading(new Date())
+    sub = p.stage || (W.isTrading(now)
       ? '开盘：现价、周线、日线全部按实时数据计算'
       : '周线为红才入选 · 按周线连红升序');
     $('stSub').textContent = sub;
@@ -1635,8 +1633,8 @@ var WR = (function () {
     if (!state.running && weekStale()) {
       parts.push('<span style="color:#EF9F27">周线已换周，当前为上一周的旧结果</span>' +
         '<span class="lnk" id="lnkRescan">重新计算</span>');
-    } else if (!state.running && daysOld() > 0 && state.updatedAt) {
-      parts.push('<span style="color:#BA7517">数据为 ' + daysOld() + ' 天前，日线颜色可能已变</span>' +
+    } else if (!state.running && days > 0 && state.updatedAt) {
+      parts.push('<span style="color:#BA7517">数据为 ' + days + ' 天前，日线颜色可能已变</span>' +
         '<span class="lnk" id="lnkRescan">刷新</span>');
     }
     var warnEl = $('stWarn');
@@ -1729,7 +1727,6 @@ var WR = (function () {
   /* ------------------------------ 标的表 ------------------------------ */
   async function ensureUniverse() {
     if (state.universe.length) return state.universe;
-    state.scanningUniverse = true;
     state.prog.stage = '拉取标的列表（新浪：ETF + 沪深A股）…';
     state.prog.done = 0; state.prog.total = 0;
     renderStatus();
@@ -1739,13 +1736,10 @@ var WR = (function () {
         renderStatus();
       });
       state.universe = list;
-      state.universeAt = new Date();
       state.prog.stage = '标的 ' + list.length + ' 只（已剔债券、货币、ST/退市）';
     } catch (e) {
       state.prog.stage = '标的列表拉取失败：' + e.message;
       throw e;
-    } finally {
-      state.scanningUniverse = false;
     }
     return state.universe;
   }
@@ -1800,10 +1794,7 @@ var WR = (function () {
       }
 
       var hits = res.found;
-      hits.sort(function (a, b) {
-        var r = a.weekRed - b.weekRed;
-        return r !== 0 ? r : b.fund.amount - a.fund.amount;
-      });
+      hits.sort(byWeekRedThenAmount);
       state.hits = hits;
       state.updatedAt = new Date();
       state.prog.failed = res.failed;
@@ -1837,38 +1828,47 @@ var WR = (function () {
     var snapshot = state.hits.slice();
     state.prog = { done: 0, total: snapshot.length, failed: 0, gaps: 0, stage: '重算已命中 ' + snapshot.length + ' 只…' };
     render();
-    await W.probe();
+    // 必须有 finally：中途抛错若把 state.running 留在 true，按钮卡死、5 秒轮询也会停摆
+    try {
+      await W.probe();
 
-    var res = await W.scan(snapshot.map(function (h) { return h.fund; }), {
-      cancelled: function () { return state.cancelled; },
-      onTick: function (done, total, failed, gaps) {
-        state.prog.done = done; state.prog.failed = failed; state.prog.gaps = gaps;
-        state.prog.stage = '重算已命中 ' + done + '/' + total;
-        renderStatus();
-      }
-    });
+      var res = await W.scan(snapshot.map(function (h) { return h.fund; }), {
+        cancelled: function () { return state.cancelled; },
+        onTick: function (done, total, failed, gaps) {
+          state.prog.done = done; state.prog.failed = failed; state.prog.gaps = gaps;
+          state.prog.stage = '重算已命中 ' + done + '/' + total;
+          renderStatus();
+        }
+      });
 
-    // 取数失败的沿用旧结果，不丢标的；取到数的按新结果判断红绿
-    var byCode = {};
-    (res.all || res.found).forEach(function (h) { byCode[h.fund.code] = h; });
-    var updated = [];
-    snapshot.forEach(function (old) {
-      var h = byCode[old.fund.code] || old;
-      if (h.weekly && h.weekly.isRed) updated.push(h);
-    });
-    updated.sort(function (a, b) {
-      var r = a.weekRed - b.weekRed;
-      return r !== 0 ? r : b.fund.amount - a.fund.amount;
-    });
-    state.hits = updated;
-    state.updatedAt = new Date();
-    state.wkLive = {}; state.dyLive = {};
-    state.prog.stage = '重算完成，' + updated.length + ' 只仍为周线红';
-    state.running = false;
-    W.saveCache(updated, state.universeSize, state.updatedAt);
-    recalcLive();
-    render();
-    startLive(true);
+      // 取数失败的沿用旧结果，不丢标的；取到数的按新结果判断红绿
+      var byCode = {};
+      (res.all || res.found).forEach(function (h) { byCode[h.fund.code] = h; });
+      var updated = [];
+      snapshot.forEach(function (old) {
+        var h = byCode[old.fund.code] || old;
+        if (h.weekly && h.weekly.isRed) updated.push(h);
+      });
+      updated.sort(byWeekRedThenAmount);
+      state.hits = updated;
+      state.updatedAt = new Date();
+      state.wkLive = {}; state.dyLive = {};
+      state.prog.stage = '重算完成，' + updated.length + ' 只仍为周线红';
+      W.saveCache(updated, state.universeSize, state.updatedAt);
+      recalcLive();
+    } catch (e) {
+      state.prog.stage = '重算出错：' + e.message;
+    } finally {
+      state.running = false;
+      render();
+      startLive(true);
+    }
+  }
+
+  /** 命中列表统一排序：连红少的在前，同档成交额大的在前 */
+  function byWeekRedThenAmount(a, b) {
+    var r = a.weekRed - b.weekRed;
+    return r !== 0 ? r : b.fund.amount - a.fund.amount;
   }
 
   /* ------------------------------ 盘中实时 ------------------------------ */
@@ -1938,11 +1938,13 @@ var WR = (function () {
   /** 现价每 5 秒变一次，只改数值不重建整张列表（近千张卡重建会卡） */
   function updateLivePrices() {
     var cards = $('list').children;
+    var now = new Date();
+    var staleWeek = weekStale(), staleDay = daysOld() > 0;
     for (var i = 0; i < cards.length; i++) {
       var el = cards[i];
       if (!el.getAttribute || !el.getAttribute('data-code')) continue;
       var code = el.getAttribute('data-code');
-      var q = liveQuote(code);
+      var q = liveQuote(code, now);
       if (!q) continue;
       var cls = W.pctClass(q.pct);
       var px = el.querySelector('[data-k="px"]');
@@ -1956,7 +1958,7 @@ var WR = (function () {
         if (wkp) { wkp.textContent = '本周 ' + (w.weekPct >= 0 ? '+' : '') + w.weekPct.toFixed(2) + '%'; wkp.className = 'wkp ' + W.pctClass(w.weekPct); }
         if (wlv) wlv.textContent = '周线 ' + w.value.toFixed(3);
         var pw = el.querySelector('[data-k="pw"]');
-        if (pw && !weekStale()) {
+        if (pw && !staleWeek) {
           pw.className = 'pill ' + (w.isRed ? 'up' : 'dn');
           pw.textContent = w.isRed ? '周' + w.redWeeks : '周';
         }
@@ -1964,7 +1966,7 @@ var WR = (function () {
       var d = state.dyLive[code];
       if (d) {
         var pd = el.querySelector('[data-k="pd"]');
-        if (pd && daysOld() === 0) {
+        if (pd && !staleDay) {
           pd.className = 'pill ' + (d.isRed ? 'up' : 'dn');
           pd.textContent = d.isRed ? '日' + d.redWeeks : '日';
         }
@@ -1973,17 +1975,21 @@ var WR = (function () {
   }
 
   /* ------------------------------ 详情页 ------------------------------ */
-  function openDetail(index) {
-    var rows = state._rows || [];
-    if (!rows.length || index < 0 || index >= rows.length) return;
-    state.detail = {
-      rows: rows.slice(), index: index,
-      week: true, selW: null, selD: null,
+  /** 详情页的数据容器：打开、左右切换、搜索进入共用一份结构 */
+  function makeDetail(rows, index) {
+    return {
+      rows: rows, index: index, week: true, selW: null, selD: null,
       rawDay: null, dayBars: [], weekBars: [], tDay: null, tWeek: null,
       partialWeek: false, closedDay: null, loading: true, err: null
     };
+  }
+
+  function openDetail(index) {
+    var rows = state._rows || [];
+    if (!rows.length || index < 0 || index >= rows.length) return;
+    state.detail = makeDetail(rows.slice(), index);
     chartState.sel = null;
-    chartState.view = { count: 60, end: 0 };   // 打开详情时回到默认窗口
+    chartState.view = { count: 0, end: 0 };   // 打开详情：根数交给 drawChart 按宽度定
     $('detail').classList.remove('hidden');
     renderDetail();
     loadDetail();
@@ -2023,7 +2029,7 @@ var WR = (function () {
     if (!d || !d.rawDay) return;
     var now = new Date();
     var row = d.rows[d.index];
-    var q = liveQuote(row.fund.code);
+    var q = liveQuote(row.fund.code, now);
     var liveOn = W.isTrading(now) && !!q;
 
     var dayBars = liveOn ? W.mergeLiveBar(d.rawDay, q, now) : d.rawDay;
@@ -2122,7 +2128,7 @@ var WR = (function () {
     row2(weekIsCurrent ? '本周涨跌' : '上周涨跌',
       tw ? (tw.weekPct >= 0 ? '+' : '') + tw.weekPct.toFixed(2) + '%' : '--',
       tw ? W.pctClass(tw.weekPct) : '');
-    if (d.liveOn) row2('刷新时间', hms(state.liveAt || now), 'flat');
+    if (d.liveOn) row2('刷新时间', hms(state.liveAt || now), 't2');
     rows.push('<div class="pdiv"></div>');
     row2('周线趋势', tw ? tw.value.toFixed(3) : '--', tw ? W.pctClass(tw.isRed ? 1 : -1) : '');
     row2('周线连红', tw ? tw.redWeeks + ' 周' : '--', tw ? W.pctClass(tw.isRed ? 1 : -1) : '');
@@ -2143,24 +2149,24 @@ var WR = (function () {
 
   /* ------------------------------ K 线绘制 ------------------------------ */
   var VIEW_MIN = 20;   // 缩放下限：最少显示 20 根
-  var chartState = { sel: null, bars: [], line: [], week: true, view: { count: 0, end: 0 }, slot: 6 };
+  var chartState = { sel: null, view: { count: 0, end: 0 }, slot: 6 };
 
   function clampN(v, a, b) { return v < a ? a : (v > b ? b : v); }
 
-  /** 当前视图窗口 [start, end)，并把越界的 count/end 规范回来 */
-  function chartView(bars) {
+  /** 当前视图窗口 [start, end)，并把越界的 count/end 规范回来；def 为未初始化时的默认根数 */
+  function chartView(bars, def) {
     var total = bars ? bars.length : 0;
     if (!total) { chartState.view.count = 0; chartState.view.end = 0; return { start: 0, end: 0, count: 0 }; }
-    var c = clampN(chartState.view.count || 0, VIEW_MIN, total);
+    var c = clampN(chartState.view.count || def || 60, VIEW_MIN, total);
     var e = clampN(chartState.view.end || total, c, total);
     chartState.view.count = c; chartState.view.end = e;
     return { start: e - c, end: e, count: c };
   }
 
-  /** 切换标的 / 周日后重置为默认窗口 */
+  /** 切换标的 / 周日后重置：count 交 0 表示按绘图区宽度重新定 */
   function resetChartView(bars, def) {
     var total = bars ? bars.length : 0;
-    chartState.view.count = Math.min(def || 60, total);
+    chartState.view.count = def ? Math.min(def, total) : 0;
     chartState.view.end = total;
   }
 
@@ -2199,11 +2205,11 @@ var WR = (function () {
 
   function chartBars() {
     var d = state.detail;
-    if (!d) return { bars: [], line: [], partial: false, maxBars: 60, week: true };
+    if (!d) return { bars: [], line: [], partial: false, week: true };
     if (d.week) {
-      return { bars: d.weekBars, line: d.tWeek ? d.tWeek.line : [], partial: d.partialWeek, maxBars: 60, week: true };
+      return { bars: d.weekBars, line: d.tWeek ? d.tWeek.line : [], partial: d.partialWeek, week: true };
     }
-    return { bars: d.dayBars, line: d.tDay ? d.tDay.line : [], partial: false, maxBars: 60, week: false };
+    return { bars: d.dayBars, line: d.tDay ? d.tDay.line : [], partial: false, week: false };
   }
 
   function fmtVol(v) {
@@ -2227,7 +2233,6 @@ var WR = (function () {
     ctx.clearRect(0, 0, w, h);
 
     var cs = chartBars(), bars = cs.bars, line = cs.line;
-    chartState.bars = bars; chartState.line = line; chartState.week = cs.week;
     if (!bars.length) return;
 
     var padL = 4, padR = 52, padT = 30, padB = 16, gap = 8;
@@ -2238,11 +2243,13 @@ var WR = (function () {
     if (pw < 40 || priceH < 40) return;
 
     // ---- 视图窗口（可缩放 / 平移）----
-    var vw = chartView(bars);
+    // 默认根数按绘图区宽度定：保证每根约 8px，实体才够宽做出空心效果（对齐参考稿的 fitCount）
+    var vw = chartView(bars, clampN(Math.round(pw / 8), 36, 60));
     var start = vw.start, n = vw.count, total = bars.length;
     var slot = pw / n;
     chartState.slot = slot;
-    var bodyW = Math.min(13, Math.max(2, slot * 0.66));
+    var bodyW = Math.min(13, Math.max(2, slot * 0.75));
+    var bw = Math.max(2, Math.round(bodyW));   // 整像素宽；成交量柱也用它，保证与 K 线同宽对齐
 
     var lo = Infinity, hi = -Infinity, vmax = 0;
     for (var i = start; i < vw.end; i++) {
@@ -2286,6 +2293,7 @@ var WR = (function () {
     }
 
     // ---- 成交量副图 ----
+    var VOL_UP = 'rgba(226,75,74,.75)', VOL_DN = 'rgba(31,169,122,.75)';
     ctx.fillStyle = '#5A6167';
     ctx.textAlign = 'left';
     ctx.fillText('成交量', padL + 1, padT + priceH + gap + 5);
@@ -2293,39 +2301,48 @@ var WR = (function () {
       var vb = bars[v];
       if (!(vb.v > 0)) continue;
       var vy = volTop(vb.v);
-      ctx.fillStyle = hexA(vb.c >= vb.o ? '#E24B4A' : '#1FA97A', 0.75);
-      ctx.fillRect(X(v) - bodyW / 2, vy, bodyW, volBottom - vy);
+      ctx.fillStyle = vb.c >= vb.o ? VOL_UP : VOL_DN;
+      ctx.fillRect(Math.round(X(v) - bw / 2), vy, bw, volBottom - vy);
     }
     ctx.strokeStyle = '#2A3035'; ctx.lineWidth = 0.8;
     ctx.beginPath(); ctx.moveTo(padL, padT + priceH + gap - 1); ctx.lineTo(padL + pw, padT + priceH + gap - 1); ctx.stroke();
 
-    // ---- K 线（阳线空心、阴线实心；影线对齐半像素）----
+    // ---- K 线（阳线空心、阴线实心；坐标对齐像素，否则细框会被抗锯齿糊成实心）----
     for (var j = start; j < vw.end; j++) {
       var bar = bars[j];
       var up = bar.c >= bar.o;
       var col = up ? '#E24B4A' : '#1FA97A';
       var partial = cs.partial && j === total - 1;
-      var cx = X(j), xr = Math.round(cx) + 0.5;
+      var cx = X(j);
+
+      var yTop = Math.round(Y(Math.max(bar.o, bar.c)));
+      var bh = Math.max(1, Math.round(Math.abs(Y(bar.c) - Y(bar.o))));
+      var bx = Math.round(cx - bw / 2);
+      var xr = bx + Math.floor(bw / 2) + 0.5;   // 影线落在这根的正中列
+
+      // 影线拆成上下两段，到实体边缘为止：整根画穿过去，空心体里会留一条竖线
       ctx.strokeStyle = partial ? hexA(col, 0.65) : col;
       ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(xr, Y(bar.h)); ctx.lineTo(xr, Y(bar.l)); ctx.stroke();
+      var yHigh = Math.round(Y(bar.h)) + 0.5, yLow = Math.round(Y(bar.l)) + 0.5;
+      var yEdgeT = yTop + 0.5, yEdgeB = yTop + bh - 0.5;
+      ctx.beginPath();
+      if (yHigh < yEdgeT) { ctx.moveTo(xr, yHigh); ctx.lineTo(xr, yEdgeT); }
+      if (yLow > yEdgeB) { ctx.moveTo(xr, yEdgeB); ctx.lineTo(xr, yLow); }
+      ctx.stroke();
 
-      var yTop = Y(Math.max(bar.o, bar.c));
-      var bh = Math.max(1, Math.abs(Y(bar.c) - Y(bar.o)));
-      var bx = cx - bodyW / 2;
       if (partial) {
         ctx.fillStyle = hexA(col, 0.28);
-        ctx.fillRect(bx, yTop, bodyW, bh);
+        ctx.fillRect(bx, yTop, bw, bh);
         ctx.strokeStyle = col; ctx.setLineDash([2, 2]); ctx.lineWidth = 1;
-        ctx.strokeRect(bx + 0.5, yTop + 0.5, bodyW - 1, bh - 1);
+        ctx.strokeRect(bx + 0.5, yTop + 0.5, bw - 1, bh - 1);
         ctx.setLineDash([]);
-      } else if (up && bodyW >= 3 && bh > 1.5) {
+      } else if (up && bw >= 4 && bh > 2) {
+        // 阳线空心：体宽不足 4px 时框内只剩一条缝，反而看不清，回落实心
         ctx.strokeStyle = col; ctx.lineWidth = 1;
-        ctx.strokeRect(bx + 0.5, yTop + 0.5, bodyW - 1, bh - 1);
+        ctx.strokeRect(bx + 0.5, yTop + 0.5, bw - 1, bh - 1);
       } else {
-        // 实体太窄（K 线密集）时改实心，否则空心框会糊成一条线
         ctx.fillStyle = col;
-        ctx.fillRect(bx, yTop, bodyW, bh);
+        ctx.fillRect(bx, yTop, bw, bh);
       }
     }
 
@@ -2392,7 +2409,7 @@ var WR = (function () {
   function renderChartInfo(ctx, bars, line, i, dec, x0) {
     var b = bars[i], prev = i > 0 ? bars[i - 1] : null;
     var pct = (!prev || !prev.c) ? 0 : (b.c - prev.c) / prev.c * 100;
-    var col = pct > 0 ? '#E24A49' : (pct < 0 ? '#1FA97A' : '#9AA0A6');
+    var col = pct > 0 ? '#E24B4A' : (pct < 0 ? '#1FA97A' : '#9AA0A6');
     ctx.font = '9.5px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -2416,7 +2433,7 @@ var WR = (function () {
 
     var tv = i < line.length ? line[i] : null;
     var tprev = i > 0 && i - 1 < line.length ? line[i - 1] : null;
-    var tcol = (tv != null && tprev != null) ? (tv > tprev ? '#E24A49' : '#1FA97A') : '#9AA0A6';
+    var tcol = (tv != null && tprev != null) ? (tv > tprev ? '#E24B4A' : '#1FA97A') : '#9AA0A6';
     var seg2 = [
       [(pct >= 0 ? '+' : '') + pct.toFixed(2) + '%  ', col],
       [b.a > 0 ? '额 ' : '量 ', '#6E757B'],
@@ -2597,12 +2614,7 @@ var WR = (function () {
       wSlope: 0, volRatio: 0, newHit: false, streak: 0, weekRed: 0, dayRed: 0,
       bias: 0, amount: fund.amount
     }];
-    state._rows = state._rows || [];
-    state.detail = {
-      rows: rows, index: 0, week: true, selW: null, selD: null,
-      rawDay: null, dayBars: [], weekBars: [], tDay: null, tWeek: null,
-      partialWeek: false, closedDay: null, loading: true, err: null
-    };
+    state.detail = makeDetail(rows, 0);
     $('detail').classList.remove('hidden');
     renderDetail();
     loadDetail();
@@ -2698,12 +2710,12 @@ var WR = (function () {
     $('tabW').onclick = function () {
       if (!state.detail) return;
       state.detail.week = true; chartState.sel = state.detail.selW;
-      resetChartView(state.detail.weekBars, 60); renderDetail();
+      resetChartView(state.detail.weekBars); renderDetail();
     };
     $('tabD').onclick = function () {
       if (!state.detail) return;
       state.detail.week = false; chartState.sel = state.detail.selD;
-      resetChartView(state.detail.dayBars, 60); renderDetail();
+      resetChartView(state.detail.dayBars); renderDetail();
     };
 
     var cv = $('chart');
